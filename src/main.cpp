@@ -322,11 +322,7 @@ i32 main()
 					Model*    model    = &g_models[selectedEntity];
 					Material* material = model->material;
 
-					ImGui::Checkbox("Albedo", &material->hasAlbedo);
-					if (material->hasAlbedo)
-					{
-						ImGui::ColorEdit3("Albedo", &material->albedo.x);
-					}
+					ImGui::ColorEdit3("Albedo", &material->albedo.x);
 
 					ImGui::Checkbox("Albedo texture", &material->hasAlbedoTexture);
 					if (material->hasAlbedoTexture)
@@ -338,12 +334,7 @@ i32 main()
 						}
 					}
 
-					// ImGui::Checkbox("Roughness", &material->hasRoughness);
-					// if (material->hasRoughness)
-					// {
-					// ImGui::SameLine();
 					ImGui::SliderFloat("Roughness", &material->roughness, 0.0f, 1.0f);
-					// }
 
 					ImGui::Checkbox("Roughness texture", &material->hasRoughnessTexture);
 					if (material->hasRoughnessTexture)
@@ -355,12 +346,7 @@ i32 main()
 						}
 					}
 
-					// ImGui::Checkbox("Metallic", &material->hasMetallic);
-					// if (material->hasMetallic)
-					// {
-					// ImGui::SameLine();
 					ImGui::SliderFloat("Metallic", &material->metallic, 0.0f, 1.0f);
-					// }
 
 					ImGui::Checkbox("Metallic texture", &material->hasMetallicTexture);
 					if (material->hasMetallicTexture)

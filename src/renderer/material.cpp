@@ -12,11 +12,8 @@ u32 Material::GetMask() const
 {
 	// clang-format off
 		const u32 result = 0
-			| hasAlbedo                   << 0
 			| hasAlbedoTexture            << 1
-			| hasRoughness                << 2
 			| hasRoughnessTexture         << 3
-			| hasMetallic                 << 4
 			| hasMetallicTexture          << 5
 			| hasMetallicRoughnessTexture << 6
 			| hasEmissive                 << 7
@@ -30,12 +27,10 @@ u32 Material::GetMask() const
 
 void Material::Bind(Program* program, const Environment* env)
 {
-	if (hasAlbedo)
-		program->SetUniform("u_albedo", albedo);
-	if (hasRoughness)
-		program->SetUniform("u_roughness", roughness);
-	if (hasMetallic)
-		program->SetUniform("u_metallic", metallic);
+	program->SetUniform("u_albedo", albedo);
+	program->SetUniform("u_roughness", roughness);
+	program->SetUniform("u_metallic", metallic);
+
 	if (hasEmissive)
 	{
 		program->SetUniform("u_emissive", emissive);
@@ -118,10 +113,7 @@ std::vector<const char*> Material::GetDefines() const
 	std::vector<const char*> defines;
 
 	// clang-format off
-	if (hasAlbedo)                   defines.push_back("HAS_ALBEDO");
 	if (hasAlbedoTexture)            defines.push_back("HAS_ALBEDO_TEXTURE");
-	if (hasRoughness)                defines.push_back("HAS_ROUGHNESS");
-	if (hasMetallic)                 defines.push_back("HAS_METALLIC");
 	if (hasRoughnessTexture)         defines.push_back("HAS_ROUGHNESS_TEXTURE");
 	if (hasMetallicTexture)          defines.push_back("HAS_METALLIC_TEXTURE");
 	if (hasMetallicRoughnessTexture) defines.push_back("HAS_METALLIC_ROUGHNESS_TEXTURE");

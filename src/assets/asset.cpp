@@ -35,22 +35,19 @@ inline Material* ProcessMaterial(aiMaterial* inputMaterial, const aiScene* scene
 	aiColor3D albedo;
 	if (AI_SUCCESS == inputMaterial->Get(AI_MATKEY_BASE_COLOR, albedo))
 	{
-		material->hasAlbedo = true;
-		material->albedo    = glm::vec3(albedo.r, albedo.g, albedo.b);
+		material->albedo = glm::vec3(albedo.r, albedo.g, albedo.b);
 	}
 
 	f32 metallic;
 	if (AI_SUCCESS == inputMaterial->Get(AI_MATKEY_METALLIC_FACTOR, metallic))
 	{
-		material->hasMetallic = true;
-		material->metallic    = metallic;
+		material->metallic = metallic;
 	}
 
 	f32 roughness;
 	if (AI_SUCCESS == inputMaterial->Get(AI_MATKEY_ROUGHNESS_FACTOR, roughness))
 	{
-		material->hasRoughness = true;
-		material->roughness    = roughness;
+		material->roughness = roughness;
 	}
 
 	aiString albedoTexture;

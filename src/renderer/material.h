@@ -26,8 +26,8 @@ private:
 
 public:
 	glm::vec3 albedo         = glm::vec3(0.5f, 0.5f, 0.5f);
-	f32       roughness      = 0.0f;
-	f32       metallic       = 0.0f;
+	f32       roughness      = 1.0f;
+	f32       metallic       = 1.0f;
 	glm::vec3 emissive       = glm::vec3(0.0f, 0.0f, 0.0f);
 	f32       emissiveFactor = 1.0f;
 
@@ -39,9 +39,6 @@ public:
 	GLuint normalMap                = 0;
 	GLuint ambientOcclusionMap      = 0;
 
-	bool hasAlbedo                   = false;
-	bool hasRoughness                = false;
-	bool hasMetallic                 = false;
 	bool hasMetallicRoughnessTexture = false;
 	bool hasEmissive                 = false;
 	bool hasAlbedoTexture            = false;
