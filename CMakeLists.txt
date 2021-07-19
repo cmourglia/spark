@@ -22,4 +22,4 @@ target_include_directories(${PROJECT_NAME} PRIVATE src)
 target_compile_definitions(${PROJECT_NAME} PRIVATE $<$<CONFIG:Debug>:_DEBUG=1> NOMINMAX _CRT_SECURE_NO_WARNINGS)
 
 target_compile_options(${PROJECT_NAME} PRIVATE $<$<CXX_COMPILER_ID:MSVC>:/std:c++latest>)
-target_compile_options(${PROJECT_NAME} PRIVATE -W3 -Werror)
+target_compile_options(${PROJECT_NAME} PRIVATE $<$<CXX_COMPILER_ID:Clang>:-W3 -Werror>)
