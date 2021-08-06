@@ -1,47 +1,40 @@
-layout (local_size_x = 8, local_size_y = 8, local_size_z = 6) in;
-layout (binding = 0) uniform samplerCube envMap;
-layout (binding = 1, rgba32f) writeonly uniform imageCube irradianceMap;
-
-const vec2 cubemapSize = vec2(64, 64);
+layout(local_size_x = 8, local_size_y = 8, local_size_z = 6) in;
+layout(binding = 0) uniform samplerCube envMap;
+layout(binding = 1, rgba32f) writeonly uniform imageCube irradianceMap;
 
 #include "base_math.glsl"
 #include "cubemap_helpers.glsl"
+#include "pbr_utils.glsl"
 
 const float sampleTheta = TWO_PI / 360.0;
-const float samplePhi = HALF_PI / 90.0;
+const float samplePhi   = HALF_PI / 90.0;
 
-void main()
+// Computes diffuse irradiance cubemap convolution for image-based lighting.
+// Uses quasi Monte Carlo sampling with Hammersley sequence.
+
+void main(void)
 {
-    ivec3 cubeCoord = ivec3(gl_GlobalInvocationID);
-    vec3 worldPos = CubeCoordToWorld(cubeCoord, cubemapSize);
+	vec3 N = normalize(CubeCoordToWorld(ivec3(gl_GlobalInvocationID), vec2(imageSize(irradianceMap))));
 
-    // Tangent space from origin point
-    vec3 normal = normalize(worldPos);
-    vec3 up = vec3(0.0, 1.0, 0.0);
-    vec3 right = normalize(cross(up, normal));
-    up = cross(normal, right);
+	vec3 S, T;
+	ComputeBasisVectors(N, S, T);
 
-    int sampleCount = 0;
-    vec3 irradiance = vec3(0.0);
-    for (float phi = 0.0; phi < TWO_PI; phi += sampleTheta)
-    {
-        float sinPhi = sin(phi);
-        float cosPhi = cos(phi);
+	uint samples = 64 * 1024;
 
-        for (float theta = 0.0; theta < HALF_PI; theta += samplePhi)
-        {
-            float sinTheta = sin(theta);
-            float cosTheta = cos(theta);
+	// Monte Carlo integration of hemispherical irradiance.
+	// As a small optimization this also includes Lambertian BRDF assuming perfectly white surface (albedo of 1.0)
+	// so we don't need to normalize in PBR fragment shader (so technically it encodes exitant radiance rather than irradiance).
+	vec3 irradiance = vec3(0);
+	for (uint i = 0; i < samples; i++)
+	{
+		vec2  u        = SampleHammersley(i, samples);
+		vec3  Li       = TangentToWorld(SampleHemisphere(u.x, u.y), N, S, T);
+		float cosTheta = max(0.0, dot(Li, N));
 
-            vec3 tempVec = cosPhi * right + sinPhi * up;
-            vec3 sampleVector = cosTheta * normal + sinTheta * tempVec;
+		// PIs here cancel out because of division by pdf.
+		irradiance += 2.0 * textureLod(envMap, Li, 8).rgb * cosTheta;
+	}
+	irradiance /= vec3(samples);
 
-            irradiance += textureLod(envMap, sampleVector, 0).rgb * cosTheta * sinTheta;
-            sampleCount += 1;
-        }
-    }
-
-    irradiance *= PI * (1.0 / float(sampleCount));
-
-    imageStore(irradianceMap, cubeCoord, vec4(irradiance, 1.0));
+	imageStore(irradianceMap, ivec3(gl_GlobalInvocationID), vec4(irradiance, 1.0));
 }

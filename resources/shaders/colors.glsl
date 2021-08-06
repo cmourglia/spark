@@ -1,0 +1,9 @@
+#ifndef COLORS_GLSL
+#define COLORS_GLSL
+
+float Luminance(vec3 color)
+{
+	return 0.2126 * color.r + 0.7152 * color.g + 0.0722 * color.b;
+}
+
+#endif // COLORS_GLSL

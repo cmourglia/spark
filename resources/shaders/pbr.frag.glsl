@@ -316,7 +316,7 @@ vec3 EvaluateDirectLighting(in vec3 n, in vec3 v, in PixelParams params)
 
 		float attenuation = 1.0 / dot(lightVec, lightVec);
 
-		vec3 illuminance = GetLightColor(i) * 0.01 * saturate(dot(n, l)) * attenuation;
+		vec3 illuminance = GetLightColor(i) * 0.2 * saturate(dot(n, l)) * attenuation;
 		vec3 luminance   = BRDF(n, v, l, params) * illuminance;
 
 		Lo += luminance;

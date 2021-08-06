@@ -16,9 +16,28 @@ vec2 Hammersley(uint i, float invN)
 	return vec2(i * invN, bits * tof);
 }
 
+// Compute Van der Corput radical inverse
+// See: http://holger.dammertz.org/stuff/notes_HammersleyOnHemisphere.html
+float RadicalInverse_VdC(uint bits)
+{
+	bits = (bits << 16u) | (bits >> 16u);
+	bits = ((bits & 0x55555555u) << 1u) | ((bits & 0xAAAAAAAAu) >> 1u);
+	bits = ((bits & 0x33333333u) << 2u) | ((bits & 0xCCCCCCCCu) >> 2u);
+	bits = ((bits & 0x0F0F0F0Fu) << 4u) | ((bits & 0xF0F0F0F0u) >> 4u);
+	bits = ((bits & 0x00FF00FFu) << 8u) | ((bits & 0xFF00FF00u) >> 8u);
+	return float(bits) * 2.3283064365386963e-10; // / 0x100000000
+}
+
+// Sample i-th point from Hammersley point set of NumSamples points total.
+vec2 SampleHammersley(uint i, uint samples)
+{
+	float invSamples = 1.0 / float(samples);
+	return vec2(i * invSamples, RadicalInverse_VdC(i));
+}
+
 vec3 HemisphereImportanceSampleDGGX(const vec2 u, const float a, const vec3 N)
 {
-	float phi = 2.0 * PI * u.x;
+	float phi       = 2.0 * PI * u.x;
 	float cosTheta2 = (1.0f - u.y) / (1.0f + (a + 1.0f) * ((a - 1.0f) * u.y));
 	float cosTheta  = sqrt(cosTheta2);
 	float sinTheta  = sqrt(1.0f - cosTheta2);
@@ -27,9 +46,9 @@ vec3 HemisphereImportanceSampleDGGX(const vec2 u, const float a, const vec3 N)
 	vec3 H = vec3(sinTheta * cos(phi), sinTheta * sin(phi), cosTheta);
 
 	// From tangent space H vector to world space sample vector
-	vec3 U = abs(N.z) < 0.999 ? vec3(0.0, 0.0, 1.0) : vec3(1.0, 0.0, 0.0);
-	vec3 T = normalize(cross(U, N));
-	vec3 B = cross(N, T);
+	vec3 U         = abs(N.z) < 0.999 ? vec3(0.0, 0.0, 1.0) : vec3(1.0, 0.0, 0.0);
+	vec3 T         = normalize(cross(U, N));
+	vec3 B         = cross(N, T);
 	vec3 sampleVec = T * H.x + B * H.y + N * H.z;
 	return normalize(sampleVec);
 }
@@ -37,14 +56,14 @@ vec3 HemisphereImportanceSampleDGGX(const vec2 u, const float a, const vec3 N)
 // Fresnel
 vec3 F_Schlick(vec3 f0, float VoH)
 {
-    return f0 + (1 - f0) * pow(1 - VoH, 5.0);
+	return f0 + (1 - f0) * pow(1 - VoH, 5.0);
 }
 
 // Distribution
 float D_GGX(float a, float NoH)
 {
 	float a2 = a * a;
-	float f = (NoH * a2 - NoH) * NoH + 1.0;
+	float f  = (NoH * a2 - NoH) * NoH + 1.0;
 	return a2 / (PI * f * f);
 }
 
@@ -54,15 +73,15 @@ float D_GGX(float a, float NoH)
 // [Heitz 2014, "Understanding the Masking-Shadowing Function in Microfacet-Based BRDFs"]
 float Vis_SmithJointApprox(float a, float NoV, float NoL)
 {
-    float V_SmithV = NoL * (NoV * (1 - a) + a);
-    float V_SmithL = NoV * (NoL * (1 - a) + a);
-    return 0.5 / (V_SmithL + V_SmithV);
+	float V_SmithV = NoL * (NoV * (1 - a) + a);
+	float V_SmithL = NoV * (NoL * (1 - a) + a);
+	return 0.5 / (V_SmithL + V_SmithV);
 }
 
 // Diffuse stuff
 float Fd_Lambert()
 {
-    return INV_PI;
+	return INV_PI;
 }
 
 #endif // PBR_UTILS_GLSL
