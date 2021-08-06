@@ -17,24 +17,8 @@ void Renderer::Initialize(const glm::vec2& initialSize)
 
 	m_backgroundProgram = Program::MakeRender("background", "background.vert.glsl", "background.frag.glsl");
 
-	m_highpassProgram = Program::MakeCompute("highpass", "highpass_filter.comp.glsl");
-	m_blurXProgram    = Program::MakeCompute("blurX", "blur.comp.glsl", {"HORIZONTAL_BLUR"});
-	m_blurYProgram    = Program::MakeCompute("blurY", "blur.comp.glsl", {"VERTICAL_BLUR"});
-	m_upsampleProgram = Program::MakeCompute("upsample", "upsample.comp.glsl");
-	m_outputProgram   = Program::MakeCompute("compose", "compose.comp.glsl");
-
-	glCreateTextures(GL_TEXTURE_2D, 1, &m_environment.iblDFG);
-
-	// glTextureStorage2D(equirectangularTexture, levels, GL_RGB32F, w, h);
-	glTextureStorage2D(m_environment.iblDFG, 1, GL_RGB32F, 128, 128);
-
-	Timer timer;
-	glTextureSubImage2D(m_environment.iblDFG, 0, 0, 0, 128, 128, GL_RGB, GL_FLOAT, PrecomputeDFG(128, 128, 1024).data());
-	glTextureParameteri(m_environment.iblDFG, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTextureParameteri(m_environment.iblDFG, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	glTextureParameteri(m_environment.iblDFG, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTextureParameteri(m_environment.iblDFG, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	FrameStats::Get()->ibl.precomputeDFG = timer.Tick();
+	m_bloomProgram  = Program::MakeCompute("bloom", "bloom.comp.glsl");
+	m_outputProgram = Program::MakeCompute("compose", "compose.comp.glsl");
 
 	glCreateFramebuffers(2, m_fbos);
 
@@ -50,8 +34,7 @@ void Renderer::Resize(const glm::vec2& newSize)
 			glDeleteTextures(1, &msaaRenderTexture);
 			glDeleteTextures(1, &resolveTexture);
 			glDeleteTextures(1, &outputTexture);
-			glDeleteTextures(1, bloomTextures);
-			glDeleteTextures(1, &averageLuminanceTexture);
+			glDeleteTextures(3, bloomTextures);
 			glDeleteRenderbuffers(1, &msaaDepthRenderBuffer);
 		}
 
@@ -84,10 +67,16 @@ void Renderer::Resize(const glm::vec2& newSize)
 		glCreateTextures(GL_TEXTURE_2D, 1, &outputTexture);
 		glTextureStorage2D(outputTexture, 1, GL_RGBA8, newSize.x, newSize.y);
 
-		i32 mipCount = log2(Min(newSize.x, newSize.y)) - 1;
-		glCreateTextures(GL_TEXTURE_2D, 2, bloomTextures);
-		glTextureStorage2D(bloomTextures[0], mipCount, GL_RGBA32F, newSize.x * 0.5, newSize.y * 0.5);
-		glTextureStorage2D(bloomTextures[1], mipCount, GL_RGBA32F, newSize.x * 0.5, newSize.y * 0.5);
+		m_bloomSize = newSize * 0.5f;
+		m_bloomSize.x += m_bloomComputeWorkGroupSize - ((i32)m_bloomSize.x % m_bloomComputeWorkGroupSize);
+		m_bloomSize.y += m_bloomComputeWorkGroupSize - ((i32)m_bloomSize.y % m_bloomComputeWorkGroupSize);
+
+		i32 mipCount  = log2(Min(m_bloomSize.x, m_bloomSize.y));
+		m_bloomPasses = mipCount - 2;
+		glCreateTextures(GL_TEXTURE_2D, 3, bloomTextures);
+		glTextureStorage2D(bloomTextures[0], mipCount, GL_RGBA32F, m_bloomSize.x, m_bloomSize.y);
+		glTextureStorage2D(bloomTextures[1], mipCount, GL_RGBA32F, m_bloomSize.x, m_bloomSize.y);
+		glTextureStorage2D(bloomTextures[2], mipCount, GL_RGBA32F, m_bloomSize.x, m_bloomSize.y);
 
 		glTextureParameteri(bloomTextures[0], GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
 		glTextureParameteri(bloomTextures[0], GL_TEXTURE_MAG_FILTER, GL_LINEAR);
@@ -99,7 +88,10 @@ void Renderer::Resize(const glm::vec2& newSize)
 		glTextureParameteri(bloomTextures[1], GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
 		glTextureParameteri(bloomTextures[1], GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
 
-		glCreateTextures(GL_TEXTURE_2D, 1, &averageLuminanceTexture);
+		glTextureParameteri(bloomTextures[2], GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+		glTextureParameteri(bloomTextures[2], GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		glTextureParameteri(bloomTextures[2], GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+		glTextureParameteri(bloomTextures[2], GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
 
 		m_framebufferSize = newSize;
 	}
@@ -166,6 +158,12 @@ void Renderer::Render(const CameraInfos& camera, const std::vector<Model>& model
 	}
 
 	stats->frame.background = timer.Tick();
+}
+
+void Renderer::ResolveMSAA()
+{
+	FrameStats* stats = FrameStats::Get();
+	Timer       timer;
 
 	glBlitNamedFramebuffer(m_msaaFB,
 	                       m_resolveFB,
@@ -183,106 +181,129 @@ void Renderer::Render(const CameraInfos& camera, const std::vector<Model>& model
 	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
 
 	stats->frame.resolveMSAA = timer.Tick();
+}
 
-	glm::vec2 size = m_framebufferSize / 2.0f;
+void Renderer::Bloom()
+{
+	if (!bloom.enabled)
+	{
+		return;
+	}
 
-	// Zero buffer
-	// std::vector<u8> zeros(m_framebufferSize.x * m_framebufferSize.y * sizeof(f32), 0);
-	// for (i32 i = 0; i < bloomWidth; ++i, size /= 2.0f)
-	// {
-	// 	glClearTexSubImage(bloomTextures[0], i, 0, 0, 0, size.x, size.y, 1, GL_RGBA, GL_FLOAT, zeros.data());
-	// 	glClearTexSubImage(bloomTextures[1], i, 0, 0, 0, size.x, size.y, 1, GL_RGBA, GL_FLOAT, zeros.data());
-	// }
-
-	// size = m_framebufferSize / 2.0f;
-
-	// Highpass + downsample
-	// m_highpassProgram->Bind();
-	// m_highpassProgram->SetUniform("viewportSize", m_bloomBufferSize);
-	// m_highpassProgram->SetUniform("threshold", bloomThreshold);
-
-	// glBindImageTexture(0, resolveTexture, 0, GL_FALSE, 0, GL_READ_ONLY, GL_RGBA32F);
-	// glBindImageTexture(1, bloomTextures[0], 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA32F);
-	// glDispatchCompute(ceil(m_bloomBufferSize.x / 32), ceil(m_bloomBufferSize.y / 32), 1);
-	stats->frame.highpassAndLuminance = timer.Tick();
-
-	// size = m_framebufferSize / 2.0f;
+	FrameStats* stats = FrameStats::Get();
+	Timer       timer;
 
 	Timer bloomTimer;
 
-	// Init loop
-	m_blurXProgram->Bind();
-	glBindImageTexture(0, resolveTexture, 0, GL_FALSE, 0, GL_READ_ONLY, GL_RGBA32F);
-	glBindImageTexture(1, bloomTextures[0], 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA32F);
-	glDispatchCompute(ceil(size.x / 32), ceil(size.y / 32), 1);
+	m_bloomProgram->Bind();
+
+	u32 workGroupsX = m_bloomSize.x / m_bloomComputeWorkGroupSize;
+	u32 workGroupsY = m_bloomSize.y / m_bloomComputeWorkGroupSize;
+
+	u32 width  = m_bloomSize.x;
+	u32 height = m_bloomSize.y;
+
+	// Prefilter
+	glBindImageTexture(0, bloomTextures[0], 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA32F);
+	glBindTextureUnit(1, resolveTexture);
+	glBindTextureUnit(2, resolveTexture);
+	m_bloomProgram->SetUniform("u_mode", 0);
+	m_bloomProgram->SetUniform("u_lod", 0.0f);
+	m_bloomProgram->SetUniform("u_params", glm::vec4(bloom.threshold, bloom.threshold - bloom.knee, bloom.knee * 2.0f, 0.25f / bloom.knee));
+	glDispatchCompute(workGroupsX, workGroupsY, 1);
 	glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+	stats->frame.bloomPrefilter = timer.Tick();
 
-	m_blurYProgram->Bind();
-	glBindImageTexture(0, bloomTextures[0], 0, GL_FALSE, 0, GL_READ_ONLY, GL_RGBA32F);
-	glBindImageTexture(1, bloomTextures[1], 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA32F);
-	glDispatchCompute(ceil(size.x / 32), ceil(size.y / 32), 1);
-	glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+	// Downsample
+	m_bloomProgram->SetUniform("u_mode", 1);
 
-	size /= 2.0;
-
-	// And start it
-	for (int i = 1; i < bloomWidth; ++i, size /= 2.0)
+	f32 lod = 1.0f;
+	for (u32 i = 1; i < m_bloomPasses; ++i, lod += 1.0f)
 	{
-		m_blurXProgram->Bind();
-		glBindImageTexture(0, bloomTextures[1], i - 1, GL_FALSE, 0, GL_READ_ONLY, GL_RGBA32F);
-		glBindImageTexture(1, bloomTextures[0], i, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA32F);
-		glDispatchCompute(ceil(size.x / 32), ceil(size.y / 32), 1);
+		u32 mipWidth  = (u32)m_bloomSize.x >> i;
+		u32 mipHeight = (u32)m_bloomSize.y >> i;
+
+		workGroupsX = ceil((f32)mipWidth / (f32)m_bloomComputeWorkGroupSize);
+		workGroupsY = ceil((f32)mipHeight / (f32)m_bloomComputeWorkGroupSize);
+
+		m_bloomProgram->SetUniform("u_lod", lod - 1);
+		glBindImageTexture(0, bloomTextures[1], i, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA32F);
+		glBindTextureUnit(1, bloomTextures[0]);
+		glBindTextureUnit(2, resolveTexture);
+		glDispatchCompute(workGroupsX, workGroupsY, 1);
 		glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
 
-		m_blurYProgram->Bind();
-		glBindImageTexture(0, bloomTextures[0], i, GL_FALSE, 0, GL_READ_ONLY, GL_RGBA32F);
-		glBindImageTexture(1, bloomTextures[1], i, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA32F);
-		glDispatchCompute(ceil(size.x / 32), ceil(size.y / 32), 1);
+		m_bloomProgram->SetUniform("u_lod", lod);
+		glBindImageTexture(0, bloomTextures[0], i, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA32F);
+		glBindTextureUnit(1, bloomTextures[1]);
+		glBindTextureUnit(2, resolveTexture);
+		glDispatchCompute(workGroupsX, workGroupsY, 1);
 		glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
 	}
-
 	stats->frame.bloomDownsample = timer.Tick();
 
-	// And upsample.
-	// Init pass
-	size *= 2.0;
-	m_upsampleProgram->Bind();
+	lod -= 1.0f;
 
-	glBindImageTexture(0, bloomTextures[1], bloomWidth - 1, GL_FALSE, 0, GL_READ_ONLY, GL_RGBA32F);
-	glBindImageTexture(1, bloomTextures[1], bloomWidth - 2, GL_FALSE, 0, GL_READ_ONLY, GL_RGBA32F);
-	glBindImageTexture(2, bloomTextures[0], bloomWidth - 2, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA32F);
-	glDispatchCompute(ceil(size.x / 32), ceil(size.y / 32), 1);
+	u32 mipWidth  = (u32)m_bloomSize.x >> m_bloomPasses;
+	u32 mipHeight = (u32)m_bloomSize.y >> m_bloomPasses;
+
+	workGroupsX = ceil((f32)mipWidth / (f32)m_bloomComputeWorkGroupSize);
+	workGroupsY = ceil((f32)mipHeight / (f32)m_bloomComputeWorkGroupSize);
+
+	// First upsample
+	m_bloomProgram->SetUniform("u_mode", 2);
+	m_bloomProgram->SetUniform("u_lod", lod);
+	glBindImageTexture(0, bloomTextures[2], m_bloomPasses, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA32F);
+	glBindTextureUnit(1, bloomTextures[0]);
+	glBindTextureUnit(2, resolveTexture);
+	glDispatchCompute(workGroupsX, workGroupsY, 1);
 	glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+	stats->frame.bloomUpsampleFirst = timer.Tick();
 
-	size *= 2.0;
-	for (int i = bloomWidth - 3; i >= 0; --i, size *= 2)
+	// Upsample
+	m_bloomProgram->SetUniform("u_mode", 3);
+
+	for (i32 mip = m_bloomPasses - 1; mip >= 0; mip--)
 	{
-		glBindImageTexture(0, bloomTextures[0], i + 1, GL_FALSE, 0, GL_READ_ONLY, GL_RGBA32F);
-		glBindImageTexture(1, bloomTextures[1], i, GL_FALSE, 0, GL_READ_ONLY, GL_RGBA32F);
-		glBindImageTexture(2, bloomTextures[0], i, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA32F);
-		glDispatchCompute(ceil(size.x / 32), ceil(size.y / 32), 1);
+		u32 mipWidth  = (u32)m_bloomSize.x >> mip;
+		u32 mipHeight = (u32)m_bloomSize.y >> mip;
+
+		workGroupsX = ceil((f32)mipWidth / (f32)m_bloomComputeWorkGroupSize);
+		workGroupsY = ceil((f32)mipHeight / (f32)m_bloomComputeWorkGroupSize);
+
+		m_bloomProgram->SetUniform("u_lod", (f32)mip);
+		glBindImageTexture(0, bloomTextures[2], mip, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA32F);
+		glBindTextureUnit(1, bloomTextures[0]);
+		glBindTextureUnit(2, bloomTextures[2]);
+		glDispatchCompute(workGroupsX, workGroupsY, 1);
 		glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
 	}
 
 	stats->frame.bloomUpsample = timer.Tick();
 	stats->frame.bloomTotal    = bloomTimer.Tick();
+}
+
+void Renderer::Compose()
+{
+	FrameStats* stats = FrameStats::Get();
+	Timer       timer;
 
 	// Final render
 	m_outputProgram->Bind();
 	m_outputProgram->SetUniform("viewportSize", m_framebufferSize);
-	m_outputProgram->SetUniform("bloomAmount", bloomAmount);
+	m_outputProgram->SetUniform("bloomAmount", bloom.enabled ? bloom.intensity : 0.0f);
 
 	glBindImageTexture(0, outputTexture, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA8);
 	glBindTextureUnit(1, resolveTexture);
 	glBindTextureUnit(2, bloomTextures[0]);
 	glBindTextureUnit(3, bloomTextures[1]);
+	glBindTextureUnit(4, bloomTextures[2]);
 
 	glDispatchCompute(m_framebufferSize.x / 32, m_framebufferSize.y / 32, 1);
 
 	glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
 
 	stats->frame.finalCompositing = timer.Tick();
-	stats->renderTotal            = frameTimer.Tick();
 }
 
 GLsizeiptr LayoutItem::GetSize() const

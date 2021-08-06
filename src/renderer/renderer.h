@@ -181,32 +181,44 @@ public:
 
 	void Resize(const glm::vec2& newSize);
 
-	Environment* GetEnvironment()
-	{
-		return &m_environment;
-	}
+private:
+	void ShadowPass(const Scene& scene);
+	void LightPass(const CameraInfos& camera, const Scene& scene);
+	void ResolveMSAA();
+	void Bloom();
+	void Compose();
 
 public:
 	i32 backgroundType     = BackgroundType_Cubemap;
 	i32 backgroundMipLevel = 0;
 
-	f32 bloomThreshold = 1.0f;
-	i32 bloomWidth     = 4;
-	f32 bloomAmount    = 1.0f;
+	struct BloomParams
+	{
+		bool enabled       = true;
+		f32  threshold     = 1.0f;
+		f32  knee          = 0.1f;
+		f32  upsampleScale = 1.0f;
+		f32  intensity     = 1.0f;
+	} bloom;
+
+	u32 shadowMapArray;
 
 	u32 msaaRenderTexture;
 	u32 resolveTexture;
 	u32 msaaDepthRenderBuffer;
 
 	// Post-process textures
-	u32 bloomTextures[2];
-	u32 averageLuminanceTexture;
+	u32 bloomTextures[3];
 
 	// Final render texture
 	u32 outputTexture;
 
 private:
 	glm::vec2 m_framebufferSize;
+
+	glm::vec2 m_bloomSize;
+	i32       m_bloomPasses;
+	i32       m_bloomComputeWorkGroupSize = 4;
 
 	u32 m_fbos[2];
 
@@ -216,11 +228,6 @@ private:
 	Program* m_backgroundProgram;
 
 	// Post-process compute shaders
-	Program* m_highpassProgram;
-	Program* m_blurXProgram;
-	Program* m_blurYProgram;
-	Program* m_upsampleProgram;
+	Program* m_bloomProgram;
 	Program* m_outputProgram;
-
-	Environment m_environment;
 };
