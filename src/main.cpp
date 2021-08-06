@@ -62,9 +62,9 @@ std::string GetFileExtension(const std::string& filename)
 
 struct Camera
 {
-	f32 phi      = 0.0f;
-	f32 theta    = 90.0f;
-	f32 distance = 1.0f;
+	f32 phi      = 45.0f;
+	f32 theta    = 45.0f;
+	f32 distance = 7.5f;
 
 	glm::vec3 position;
 	glm::vec3 center = glm::vec3(0.0f, 0.0f, 0.0f);
@@ -89,10 +89,9 @@ void RenderUI(const std::vector<Model>& models);
 
 [[clang::no_destroy]] global_variable Camera g_camera;
 // [[clang::no_destroy]] global_variable f32    g_lastScroll = 0.0f;
-[[clang::no_destroy]] global_variable f32 g_viewportX = 0.0f, g_viewportY = 0.0f;
-[[clang::no_destroy]] global_variable f32 g_viewportW = 0.0f, g_viewportH = 0.0f;
-[[clang::no_destroy]] global_variable std::vector<Model> g_models = {};
-[[clang::no_destroy]] global_variable Environment* g_env;
+[[clang::no_destroy]] global_variable f32   g_viewportX = 0.0f, g_viewportY = 0.0f;
+[[clang::no_destroy]] global_variable f32   g_viewportW = 0.0f, g_viewportH = 0.0f;
+[[clang::no_destroy]] global_variable Scene g_scene;
 
 i32 main()
 {
@@ -138,12 +137,13 @@ i32 main()
 
 	Renderer renderer;
 	renderer.Initialize(glm::vec2(g_width, g_height));
-	g_env = renderer.GetEnvironment();
 
-	LoadEnvironment("resources/env/Frozen_Waterfall_Ref.hdr", g_env);
+	LoadEnvironment("resources/env/Frozen_Waterfall_Ref.hdr", &g_scene.env);
 
-	g_models = LoadScene(R"(external\glTF-Sample-Models\2.0\DamagedHelmet\glTF\DamagedHelmet.gltf)");
+	// g_scene.models = LoadScene(R"(external\glTF-Sample-Models\2.0\DamagedHelmet\glTF\DamagedHelmet.gltf)");
 	// LoadScene(R"(external\glTF-Sample-Models\2.0\MetalRoughSpheres\glTF\MetalRoughSpheres.gltf)");
+	// g_scene.models = LoadScene("resources/models/blender_probe/probe.glb");
+	g_scene.models = LoadScene("resources/models/3spheres.glb");
 
 	ImGui::FileBrowser textureDialog;
 	textureDialog.SetTitle("Open texture...");
@@ -162,7 +162,7 @@ i32 main()
 			    .proj     = cameraProj,
 			    .position = g_camera.position,
 			};
-			renderer.Render(cameraInfos, g_models);
+			renderer.Render(cameraInfos, g_scene);
 		}
 
 		ImGuiIO& io = ImGui::GetIO();
@@ -270,7 +270,7 @@ i32 main()
 
 			ImGui::Begin("Entities");
 			{
-				for (i32 i = 0; i < g_models.size(); ++i)
+				for (i32 i = 0; i < g_scene.models.size(); ++i)
 				{
 					char buf[32];
 					sprintf(buf, "Entity #%d", i);
@@ -304,9 +304,10 @@ i32 main()
 				ImGui::Separator();
 
 				ImGui::Text("Bloom parameters");
-				ImGui::DragFloat("Highpass Threshold", &renderer.bloomThreshold, 1.0f, 0.0f, 10.0f, "%.0f");
-				ImGui::SliderInt("Blur radius", &renderer.bloomWidth, 1, 6);
-				ImGui::DragFloat("Bloom amount", &renderer.bloomAmount, 0.1f, 0.0f, 3.0f, "%.1f");
+				ImGui::Checkbox("Enabled", &renderer.bloom.enabled);
+				ImGui::DragFloat("Threshold", &renderer.bloom.threshold, 0.1f, 0.0f, 10.0f, "%.1f");
+				ImGui::DragFloat("Knee", &renderer.bloom.knee, 0.01f, 0.0f, 10.0f, "%.2f");
+				ImGui::DragFloat("Intensity", &renderer.bloom.intensity, 0.1f, 0.0f, 10.0f, "%.1f");
 
 				ImGui::Separator();
 
@@ -317,9 +318,9 @@ i32 main()
 			ImGui::Begin("Properties");
 			if (ImGui::CollapsingHeader("Material", ImGuiTreeNodeFlags_DefaultOpen))
 			{
-				if (selectedEntity >= 0 && selectedEntity < g_models.size())
+				if (selectedEntity >= 0 && selectedEntity < g_scene.models.size())
 				{
-					Model*    model    = &g_models[selectedEntity];
+					Model*    model    = &g_scene.models[selectedEntity];
 					Material* material = model->material;
 
 					ImGui::ColorEdit3("Albedo", &material->albedo.x);
@@ -444,10 +445,11 @@ i32 main()
 				ImGui::Text("\t\tRender envmap: %.3lfms", stats->frame.background);
 				ImGui::Text("\t\tResolve MSAA: %.3lfms", stats->frame.resolveMSAA);
 				ImGui::Text("\tPost-Process");
-				ImGui::Text("\t\tLuminance + bloom threshold: %.3lfms", stats->frame.highpassAndLuminance);
 				ImGui::Text("\t\tBloom total: %.3lfms", stats->frame.bloomTotal);
-				ImGui::Text("\t\tBloom downsample: %.3lfms", stats->frame.bloomDownsample);
-				ImGui::Text("\t\tBloom upsample: %.3lfms", stats->frame.bloomUpsample);
+				ImGui::Text("\t\t\tBloom prefilter: %.3lfms", stats->frame.bloomPrefilter);
+				ImGui::Text("\t\t\tBloom downsample: %.3lfms", stats->frame.bloomDownsample);
+				ImGui::Text("\t\t\tBloom upsample first pass: %.3lfms", stats->frame.bloomUpsampleFirst);
+				ImGui::Text("\t\t\tBloom upsample: %.3lfms", stats->frame.bloomUpsample);
 				ImGui::Text("\t\tFinal compositing: %.3lfms", stats->frame.finalCompositing);
 
 				ImGui::Text("\tImGui");
@@ -457,13 +459,13 @@ i32 main()
 				ImGui::Separator();
 
 				ImGui::Text("Render stats");
-				ImGui::Text("Drawing %d models", (i32)g_models.size());
+				ImGui::Text("Drawing %d models", (i32)g_scene.models.size());
 				i64 vertexTotal   = 0;
 				i64 triangleTotal = 0;
-				for (i32 i = 0; i < g_models.size(); ++i)
+				for (i32 i = 0; i < g_scene.models.size(); ++i)
 				{
-					i64 vertexCount   = g_models[i].mesh->vertexCount;
-					i64 triangleCount = g_models[i].mesh->indexCount / 3;
+					i64 vertexCount   = g_scene.models[i].mesh->vertexCount;
+					i64 triangleCount = g_scene.models[i].mesh->indexCount / 3;
 					ImGui::Text("\tModel %d has %lld vertices and %lld triangles", i, vertexCount, triangleCount);
 					vertexTotal += vertexCount;
 					triangleTotal += triangleCount;
@@ -625,11 +627,11 @@ static void DropCallback(GLFWwindow* window, i32 count, const char** paths)
 		std::string ext = GetFileExtension(paths[i]);
 		if (ext == "hdr")
 		{
-			LoadEnvironment(paths[i], g_env);
+			LoadEnvironment(paths[i], &g_scene.env);
 		}
 		else
 		{
-			g_models = LoadScene(paths[i]);
+			g_scene.models = LoadScene(paths[i]);
 		}
 	}
 }

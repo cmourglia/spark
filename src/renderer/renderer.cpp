@@ -5,8 +5,6 @@
 
 #include "core/utils.h"
 
-extern std::vector<glm::vec3> PrecomputeDFG(u32 w, u32 h, u32 sampleCount); // 128, 128, 512
-
 void Renderer::Initialize(const glm::vec2& initialSize)
 {
 	glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
@@ -97,7 +95,7 @@ void Renderer::Resize(const glm::vec2& newSize)
 	}
 }
 
-void Renderer::Render(const CameraInfos& camera, const std::vector<Model>& models)
+void Renderer::Render(const CameraInfos& camera, const Scene& scene)
 {
 	FrameStats* stats = FrameStats::Get();
 	Timer       timer;
@@ -106,12 +104,32 @@ void Renderer::Render(const CameraInfos& camera, const std::vector<Model>& model
 	Program::UpdateAllPrograms();
 	stats->frame.updatePrograms = timer.Tick();
 
+	ShadowPass(scene);
+	LightPass(camera, scene);
+	ResolveMSAA();
+	Bloom();
+	Compose();
+
+	stats->renderTotal = frameTimer.Tick();
+}
+
+void Renderer::ShadowPass(const Scene& scene)
+{
+	FrameStats* stats = FrameStats::Get();
+	Timer       timer;
+}
+
+void Renderer::LightPass(const CameraInfos& camera, const Scene& scene)
+{
+	FrameStats* stats = FrameStats::Get();
+	Timer       timer;
+
 	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, m_msaaFB);
 
 	glViewport(0, 0, m_framebufferSize.x, m_framebufferSize.y);
 
 	glClearDepth(1.0f);
-	glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
+	glClearColor(0.5f, 0.8f, 0.9f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 	glEnable(GL_DEPTH_TEST);
@@ -121,10 +139,10 @@ void Renderer::Render(const CameraInfos& camera, const std::vector<Model>& model
 	    .eyePosition = camera.position,
 	    .view        = camera.view,
 	    .proj        = camera.proj,
-	    .env         = GetEnvironment(),
+	    .env         = &scene.env,
 	};
 
-	for (auto&& model : models)
+	for (auto&& model : scene.models)
 	{
 		model.Draw(&context);
 	}
@@ -142,15 +160,15 @@ void Renderer::Render(const CameraInfos& camera, const std::vector<Model>& model
 		switch (backgroundType)
 		{
 			case BackgroundType_Cubemap:
-				glBindTextureUnit(0, m_environment.envMap);
+				glBindTextureUnit(0, scene.env.envMap);
 				break;
 
 			case BackgroundType_Radiance:
-				glBindTextureUnit(0, m_environment.radianceMap);
+				glBindTextureUnit(0, scene.env.radianceMap);
 				break;
 
 			case BackgroundType_Irradiance:
-				glBindTextureUnit(0, m_environment.irradianceMap);
+				glBindTextureUnit(0, scene.env.irradianceMap);
 				break;
 		}
 

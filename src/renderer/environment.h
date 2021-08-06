@@ -4,10 +4,10 @@
 
 struct Environment
 {
-	u32 envMap        = 0;
-	u32 irradianceMap = 0;
-	u32 radianceMap   = 0;
-	u32 iblDFG        = 0;
+	u32 envMap;
+	u32 irradianceMap;
+	u32 radianceMap;
+	u32 iblDFG;
 };
 
 void LoadEnvironment(const char* filename, Environment* env);

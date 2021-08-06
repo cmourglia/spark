@@ -20,16 +20,17 @@ struct FrameStats
 
 	struct
 	{
-		f64 updatePrograms       = 0.0;
-		f64 zPrepass             = 0.0;
-		f64 renderModels         = 0.0;
-		f64 background           = 0.0;
-		f64 resolveMSAA          = 0.0;
-		f64 highpassAndLuminance = 0.0;
-		f64 bloomDownsample      = 0.0;
-		f64 bloomUpsample        = 0.0;
-		f64 bloomTotal           = 0.0;
-		f64 finalCompositing     = 0.0;
+		f64 updatePrograms     = 0.0;
+		f64 zPrepass           = 0.0;
+		f64 renderModels       = 0.0;
+		f64 background         = 0.0;
+		f64 resolveMSAA        = 0.0;
+		f64 bloomPrefilter     = 0.0;
+		f64 bloomDownsample    = 0.0;
+		f64 bloomUpsampleFirst = 0.0;
+		f64 bloomUpsample      = 0.0;
+		f64 bloomTotal         = 0.0;
+		f64 finalCompositing   = 0.0;
 	} frame;
 
 	f64 renderTotal = 0.0;

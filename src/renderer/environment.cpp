@@ -14,11 +14,28 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
+extern std::vector<glm::vec3> PrecomputeDFG(u32 w, u32 h, u32 sampleCount); // 128, 128, 512
+
 void LoadEnvironment(const char* filename, Environment* env)
 {
 	FrameStats* stats = FrameStats::Get();
 	Timer       timer;
 	Timer       procTimer;
+
+	if (!glIsTexture(env->iblDFG))
+	{
+		glCreateTextures(GL_TEXTURE_2D, 1, &env->iblDFG);
+
+		// glTextureStorage2D(equirectangularTexture, levels, GL_RGB32F, w, h);
+		glTextureStorage2D(env->iblDFG, 1, GL_RGB32F, 128, 128);
+
+		glTextureSubImage2D(env->iblDFG, 0, 0, 0, 128, 128, GL_RGB, GL_FLOAT, PrecomputeDFG(128, 128, 1024).data());
+		glTextureParameteri(env->iblDFG, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		glTextureParameteri(env->iblDFG, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+		glTextureParameteri(env->iblDFG, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTextureParameteri(env->iblDFG, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		FrameStats::Get()->ibl.precomputeDFG = timer.Tick();
+	}
 
 	stbi_set_flip_vertically_on_load(true);
 
@@ -95,11 +112,11 @@ void LoadEnvironment(const char* filename, Environment* env)
 
 	for (u32 mip = 0; mip < mipLevels; ++mip, mipSize /= 2)
 	{
-		const f32 roughness = (f32)mip / (f32)(mipLevels - 1);
+		const f32 roughness = Max(0.05f, (f32)mip / (f32)(mipLevels - 1));
 
 		glBindImageTexture(1, env->radianceMap, mip, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA32F);
-		prefilterEnvmapProgram->SetUniform("roughness", roughness);
-		prefilterEnvmapProgram->SetUniform("mipSize", glm::vec2(mipSize, mipSize));
+		prefilterEnvmapProgram->SetUniform("u_roughness", roughness);
+		prefilterEnvmapProgram->SetUniform("u_mipSize", glm::vec2(mipSize, mipSize));
 
 		glDispatchCompute(mipSize / 8, mipSize / 8, 1);
 	}
@@ -117,13 +134,13 @@ void LoadEnvironment(const char* filename, Environment* env)
 		glTextureParameteri(env->irradianceMap, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 		glTextureParameteri(env->irradianceMap, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 		glTextureParameteri(env->irradianceMap, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
-		glTextureParameteri(env->irradianceMap, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTextureParameteri(env->irradianceMap, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
 		glTextureParameteri(env->irradianceMap, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 	}
 
 	Program* irradianceProgram = Program::GetProgramByName("irradiance");
 	irradianceProgram->Bind();
-	glBindTextureUnit(0, env->envMap); // glBindImageTexture(0, env->envMap, 0, GL_TRUE, 0, GL_READ_ONLY, GL_RGBA32F);
+	glBindTextureUnit(0, env->radianceMap); // glBindImageTexture(0, env->envMap, 0, GL_TRUE, 0, GL_READ_ONLY, GL_RGBA32F);
 	glBindImageTexture(1, env->irradianceMap, 0, GL_TRUE, 0, GL_WRITE_ONLY, GL_RGBA32F);
 
 	glDispatchCompute(8, 8, 1);

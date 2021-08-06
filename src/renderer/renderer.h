@@ -145,7 +145,7 @@ struct RenderContext
 
 	glm::vec3 lightDirection;
 
-	Environment* env;
+	const Environment* env;
 };
 
 struct Model
@@ -173,11 +173,35 @@ enum BackgroundType
 	BackgroundType_Irradiance = 3,
 };
 
+enum LightType
+{
+	LightType_Point,
+	LightType_Directional,
+	LightType_Spot,
+};
+
+struct Light
+{
+	LightType type;
+	glm::vec3 position;
+	glm::vec3 direction;
+	glm::vec3 color;
+	f32       innerAngle;
+	f32       outerAngle;
+};
+
+struct Scene
+{
+	Environment        env;
+	std::vector<Model> models;
+	std::vector<Light> lights;
+};
+
 class Renderer
 {
 public:
 	void Initialize(const glm::vec2& initSize);
-	void Render(const CameraInfos& camera, const std::vector<Model>& models);
+	void Render(const CameraInfos& camera, const Scene& scene);
 
 	void Resize(const glm::vec2& newSize);
 
@@ -221,6 +245,9 @@ private:
 	i32       m_bloomComputeWorkGroupSize = 4;
 
 	u32 m_fbos[2];
+
+	u32 m_matricesUBO;
+	u32 m_lightsSSBO;
 
 #define m_msaaFB m_fbos[0]
 #define m_resolveFB m_fbos[1]

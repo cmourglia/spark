@@ -15,7 +15,8 @@ add_executable(${PROJECT_NAME}
     src/renderer/renderer.h src/renderer/renderer.cpp
     src/renderer/texture.h src/renderer/texture.cpp
     src/renderer/frame_stats.h src/renderer/frame_stats.cpp
-    src/assets/asset.h src/assets/asset.cpp)
+    src/assets/asset.h src/assets/asset.cpp
+)
 
 target_link_libraries(${PROJECT_NAME} PRIVATE glm glfw glad stb imgui assimp)
 target_include_directories(${PROJECT_NAME} PRIVATE src)
