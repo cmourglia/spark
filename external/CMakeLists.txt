@@ -45,3 +45,5 @@ endif()
 add_subdirectory(assimp)
 target_compile_options(assimp PRIVATE $<$<CXX_COMPILER_ID:Clang>:-Wno-deprecated-array-compare>)
 target_compile_options(assimp PRIVATE $<$<CXX_COMPILER_ID:MSVC>:/Wv:18>)
+
+add_subdirectory(entt)
