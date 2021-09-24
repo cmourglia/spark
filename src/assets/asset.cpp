@@ -7,6 +7,8 @@
 #include "renderer/renderer.h"
 #include "renderer/frame_stats.h"
 
+#include <entt/entt.hpp>
+
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
@@ -28,9 +30,9 @@ inline std::string TexturePath(const char* texture, const std::filesystem::path&
 	return fullPath.string();
 }
 
-inline Material* ProcessMaterial(aiMaterial* inputMaterial, const aiScene* scene, const std::filesystem::path& path)
+inline std::shared_ptr<Material> ProcessMaterial(aiMaterial* inputMaterial, const aiScene* scene, const std::filesystem::path& path)
 {
-	Material* material = new Material(inputMaterial->GetName().C_Str(), "pbr.vert.glsl", "pbr.frag.glsl");
+	auto material = std::make_shared<Material>(inputMaterial->GetName().C_Str(), "pbr.vert.glsl", "pbr.frag.glsl");
 
 	aiColor3D albedo;
 	if (AI_SUCCESS == inputMaterial->Get(AI_MATKEY_BASE_COLOR, albedo))
@@ -102,7 +104,7 @@ inline Material* ProcessMaterial(aiMaterial* inputMaterial, const aiScene* scene
 	return material;
 }
 
-Mesh* ProcessMesh(aiMesh* inputMesh, const aiScene* scene)
+std::shared_ptr<Mesh> ProcessMesh(aiMesh* inputMesh, const aiScene* scene)
 {
 	std::vector<Vertex> vertices;
 	std::vector<u32>    indices;
@@ -142,7 +144,7 @@ Mesh* ProcessMesh(aiMesh* inputMesh, const aiScene* scene)
 		}
 	}
 
-	Mesh* mesh = new Mesh(vertices, indices);
+	auto mesh = std::make_shared<Mesh>(vertices, indices);
 
 	return mesh;
 }
@@ -151,7 +153,7 @@ inline void ProcessNode(aiNode*                      node,
                         const aiScene*               scene,
                         const glm::mat4&             parentTransform,
                         const std::filesystem::path& path,
-                        std::vector<Model>*          loadedModels)
+                        World*                       world)
 {
 	const auto& mat = node->mTransformation;
 
@@ -162,28 +164,33 @@ inline void ProcessNode(aiNode*                      node,
 	                              mat.a4, mat.b4, mat.c4, mat.d4);
 	// clang-format on
 
-	const glm::mat4 transform = parentTransform * nodeTransform;
+	const glm::mat4 worldTransform = parentTransform * nodeTransform;
 
 	for (u32 index = 0; index < node->mNumMeshes; ++index)
 	{
-		Model model;
-
 		aiMesh*     inputMesh     = scene->mMeshes[node->mMeshes[index]];
 		aiMaterial* inputMaterial = scene->mMaterials[inputMesh->mMaterialIndex];
 
-		model.mesh           = ProcessMesh(scene->mMeshes[node->mMeshes[index]], scene);
-		model.material       = ProcessMaterial(inputMaterial, scene, path);
-		model.worldTransform = transform;
-		loadedModels->push_back(std::move(model));
+		auto entity = world->world.create();
+
+		Renderable& renderable = world->world.emplace<Renderable>(entity);
+		renderable.mesh        = ProcessMesh(scene->mMeshes[node->mMeshes[index]], scene);
+		renderable.material    = ProcessMaterial(inputMaterial, scene, path);
+
+		Transform& transform = world->world.emplace<Transform>(entity);
+		transform.transform  = worldTransform;
+
+		Name& name = world->world.emplace<Name>(entity);
+		name.name  = node->mName.C_Str();
 	}
 
 	for (u32 index = 0; index < node->mNumChildren; ++index)
 	{
-		ProcessNode(node->mChildren[index], scene, transform, path, loadedModels);
+		ProcessNode(node->mChildren[index], scene, worldTransform, path, world);
 	}
 }
 
-std::vector<Model> LoadScene(const char* filename)
+bool LoadScene(const char* filename, World* world)
 {
 	Timer timer;
 
@@ -195,16 +202,15 @@ std::vector<Model> LoadScene(const char* filename)
 	if ((nullptr == scene) || (0 != (scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE)) || (nullptr == scene->mRootNode))
 	{
 		fprintf(stderr, "Could not load file %s\n", filename);
-		return {};
+		return false;
 	}
 
-	std::vector<Model>    models;
 	std::filesystem::path p;
 	p = filename;
 	p.remove_filename();
-	ProcessNode(scene->mRootNode, scene, glm::mat4(1.0f), p, &models);
+	ProcessNode(scene->mRootNode, scene, glm::mat4(1.0f), p, world);
 
 	FrameStats::Get()->loadScene = timer.Tick();
 
-	return models;
+	return true;
 }

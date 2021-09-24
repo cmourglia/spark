@@ -3,7 +3,11 @@
 #include "renderer/render_primitives.h"
 #include "renderer/frame_stats.h"
 
+#include "world/world.h"
+
 #include "core/utils.h"
+
+#include <entt/entt.hpp>
 
 void Renderer::Initialize(const glm::vec2& initialSize)
 {
@@ -95,7 +99,7 @@ void Renderer::Resize(const glm::vec2& newSize)
 	}
 }
 
-void Renderer::Render(const CameraInfos& camera, const Scene& scene)
+void Renderer::Render(const CameraInfos& camera, entt::registry& scene)
 {
 	FrameStats* stats = FrameStats::Get();
 	Timer       timer;
@@ -113,13 +117,13 @@ void Renderer::Render(const CameraInfos& camera, const Scene& scene)
 	stats->renderTotal = frameTimer.Tick();
 }
 
-void Renderer::ShadowPass(const Scene& scene)
+void Renderer::ShadowPass(entt::registry& scene)
 {
 	FrameStats* stats = FrameStats::Get();
 	Timer       timer;
 }
 
-void Renderer::LightPass(const CameraInfos& camera, const Scene& scene)
+void Renderer::LightPass(const CameraInfos& camera, entt::registry& scene)
 {
 	FrameStats* stats = FrameStats::Get();
 	Timer       timer;
@@ -139,13 +143,19 @@ void Renderer::LightPass(const CameraInfos& camera, const Scene& scene)
 	    .eyePosition = camera.position,
 	    .view        = camera.view,
 	    .proj        = camera.proj,
-	    .env         = &scene.env,
+	    .env         = &env,
 	};
 
-	for (auto&& model : scene.models)
-	{
-		model.Draw(&context);
-	}
+	auto view = scene.view<const Transform, Renderable>();
+	view.each(
+	    [&context](const auto& transform, auto& renderable)
+	    {
+		    Model model;
+		    model.worldTransform = transform.transform;
+		    model.mesh           = renderable.mesh.get();
+		    model.material       = renderable.material.get();
+		    model.Draw(&context);
+	    });
 
 	stats->frame.renderModels = timer.Tick();
 
@@ -160,15 +170,15 @@ void Renderer::LightPass(const CameraInfos& camera, const Scene& scene)
 		switch (backgroundType)
 		{
 			case BackgroundType_Cubemap:
-				glBindTextureUnit(0, scene.env.envMap);
+				glBindTextureUnit(0, env.envMap);
 				break;
 
 			case BackgroundType_Radiance:
-				glBindTextureUnit(0, scene.env.radianceMap);
+				glBindTextureUnit(0, env.radianceMap);
 				break;
 
 			case BackgroundType_Irradiance:
-				glBindTextureUnit(0, scene.env.irradianceMap);
+				glBindTextureUnit(0, env.irradianceMap);
 				break;
 		}
 

@@ -11,6 +11,8 @@
 
 #include "assets/asset.h"
 
+#include "world/world.h"
+
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 
@@ -89,9 +91,12 @@ void RenderUI(const std::vector<Model>& models);
 
 [[clang::no_destroy]] global_variable Camera g_camera;
 // [[clang::no_destroy]] global_variable f32    g_lastScroll = 0.0f;
-[[clang::no_destroy]] global_variable f32   g_viewportX = 0.0f, g_viewportY = 0.0f;
-[[clang::no_destroy]] global_variable f32   g_viewportW = 0.0f, g_viewportH = 0.0f;
-[[clang::no_destroy]] global_variable Scene g_scene;
+[[clang::no_destroy]] global_variable f32 g_viewportX = 0.0f, g_viewportY = 0.0f;
+[[clang::no_destroy]] global_variable f32 g_viewportW = 0.0f, g_viewportH = 0.0f;
+
+[[clang::no_destroy]] global_variable World g_world;
+
+global_variable Environment* g_env = nullptr;
 
 i32 main()
 {
@@ -138,12 +143,14 @@ i32 main()
 	Renderer renderer;
 	renderer.Initialize(glm::vec2(g_width, g_height));
 
-	LoadEnvironment("resources/env/Frozen_Waterfall_Ref.hdr", &g_scene.env);
+	g_env = &renderer.env;
+
+	LoadEnvironment("resources/env/Frozen_Waterfall_Ref.hdr", g_env);
 
 	// g_scene.models = LoadScene(R"(external\glTF-Sample-Models\2.0\DamagedHelmet\glTF\DamagedHelmet.gltf)");
 	// LoadScene(R"(external\glTF-Sample-Models\2.0\MetalRoughSpheres\glTF\MetalRoughSpheres.gltf)");
 	// g_scene.models = LoadScene("resources/models/blender_probe/probe.glb");
-	g_scene.models = LoadScene("resources/models/3spheres.glb");
+	LoadScene("resources/models/3spheres.glb", &g_world);
 
 	ImGui::FileBrowser textureDialog;
 	textureDialog.SetTitle("Open texture...");
@@ -162,7 +169,7 @@ i32 main()
 			    .proj     = cameraProj,
 			    .position = g_camera.position,
 			};
-			renderer.Render(cameraInfos, g_scene);
+			renderer.Render(cameraInfos, g_world.world);
 		}
 
 		ImGuiIO& io = ImGui::GetIO();
@@ -270,11 +277,11 @@ i32 main()
 
 			ImGui::Begin("Entities");
 			{
-				for (i32 i = 0; i < g_scene.models.size(); ++i)
+				const auto& view = g_world.world.view<Name>();
+
+				for (i32 i = 0; i < view.size(); ++i)
 				{
-					char buf[32];
-					sprintf(buf, "Entity #%d", i);
-					if (ImGui::Selectable(buf, selectedEntity == i))
+					if (ImGui::Selectable(view.get<Name>(view[i]).name.c_str(), selectedEntity == i))
 					{
 						selectedEntity = i;
 					}
@@ -318,101 +325,101 @@ i32 main()
 			ImGui::Begin("Properties");
 			if (ImGui::CollapsingHeader("Material", ImGuiTreeNodeFlags_DefaultOpen))
 			{
-				if (selectedEntity >= 0 && selectedEntity < g_scene.models.size())
-				{
-					Model*    model    = &g_scene.models[selectedEntity];
-					Material* material = model->material;
+				// if (selectedEntity >= 0 && selectedEntity < g_scene.models.size())
+				// {
+				// 	Model*    model    = &g_scene.models[selectedEntity];
+				// 	Material* material = model->material;
 
-					ImGui::ColorEdit3("Albedo", &material->albedo.x);
+				// 	ImGui::ColorEdit3("Albedo", &material->albedo.x);
 
-					ImGui::Checkbox("Albedo texture", &material->hasAlbedoTexture);
-					if (material->hasAlbedoTexture)
-					{
-						if (ImGui::ImageButton((void*)(intptr_t)material->albedoTexture, ImVec2(64, 64), ImVec2(0, 1), ImVec2(1, 0)))
-						{
-							selectedTexture = &material->albedoTexture;
-							textureDialog.Open();
-						}
-					}
+				// 	ImGui::Checkbox("Albedo texture", &material->hasAlbedoTexture);
+				// 	if (material->hasAlbedoTexture)
+				// 	{
+				// 		if (ImGui::ImageButton((void*)(intptr_t)material->albedoTexture, ImVec2(64, 64), ImVec2(0, 1), ImVec2(1, 0)))
+				// 		{
+				// 			selectedTexture = &material->albedoTexture;
+				// 			textureDialog.Open();
+				// 		}
+				// 	}
 
-					ImGui::SliderFloat("Roughness", &material->roughness, 0.0f, 1.0f);
+				// 	ImGui::SliderFloat("Roughness", &material->roughness, 0.0f, 1.0f);
 
-					ImGui::Checkbox("Roughness texture", &material->hasRoughnessTexture);
-					if (material->hasRoughnessTexture)
-					{
-						if (ImGui::ImageButton((void*)(intptr_t)material->roughnessTexture, ImVec2(64, 64), ImVec2(0, 1), ImVec2(1, 0)))
-						{
-							selectedTexture = &material->roughnessTexture;
-							textureDialog.Open();
-						}
-					}
+				// 	ImGui::Checkbox("Roughness texture", &material->hasRoughnessTexture);
+				// 	if (material->hasRoughnessTexture)
+				// 	{
+				// 		if (ImGui::ImageButton((void*)(intptr_t)material->roughnessTexture, ImVec2(64, 64), ImVec2(0, 1), ImVec2(1, 0)))
+				// 		{
+				// 			selectedTexture = &material->roughnessTexture;
+				// 			textureDialog.Open();
+				// 		}
+				// 	}
 
-					ImGui::SliderFloat("Metallic", &material->metallic, 0.0f, 1.0f);
+				// 	ImGui::SliderFloat("Metallic", &material->metallic, 0.0f, 1.0f);
 
-					ImGui::Checkbox("Metallic texture", &material->hasMetallicTexture);
-					if (material->hasMetallicTexture)
-					{
-						if (ImGui::ImageButton((void*)(intptr_t)material->metallicTexture, ImVec2(64, 64), ImVec2(0, 1), ImVec2(1, 0)))
-						{
-							selectedTexture = &material->metallicTexture;
-							textureDialog.Open();
-						}
-					}
+				// 	ImGui::Checkbox("Metallic texture", &material->hasMetallicTexture);
+				// 	if (material->hasMetallicTexture)
+				// 	{
+				// 		if (ImGui::ImageButton((void*)(intptr_t)material->metallicTexture, ImVec2(64, 64), ImVec2(0, 1), ImVec2(1, 0)))
+				// 		{
+				// 			selectedTexture = &material->metallicTexture;
+				// 			textureDialog.Open();
+				// 		}
+				// 	}
 
-					ImGui::Checkbox("Metallic - Roughness texture", &material->hasMetallicRoughnessTexture);
-					if (material->hasMetallicRoughnessTexture)
-					{
-						if (ImGui::ImageButton((void*)(intptr_t)material->metallicRoughnessTexture,
-						                       ImVec2(64, 64),
-						                       ImVec2(0, 1),
-						                       ImVec2(1, 0)))
-						{
-							selectedTexture = &material->metallicRoughnessTexture;
-							textureDialog.Open();
-						}
-					}
+				// 	ImGui::Checkbox("Metallic - Roughness texture", &material->hasMetallicRoughnessTexture);
+				// 	if (material->hasMetallicRoughnessTexture)
+				// 	{
+				// 		if (ImGui::ImageButton((void*)(intptr_t)material->metallicRoughnessTexture,
+				// 		                       ImVec2(64, 64),
+				// 		                       ImVec2(0, 1),
+				// 		                       ImVec2(1, 0)))
+				// 		{
+				// 			selectedTexture = &material->metallicRoughnessTexture;
+				// 			textureDialog.Open();
+				// 		}
+				// 	}
 
-					ImGui::Checkbox("Emissive", &material->hasEmissive);
-					if (material->hasEmissive)
-					{
-						ImGui::ColorEdit3("Emissive", &material->emissive.x);
-					}
+				// 	ImGui::Checkbox("Emissive", &material->hasEmissive);
+				// 	if (material->hasEmissive)
+				// 	{
+				// 		ImGui::ColorEdit3("Emissive", &material->emissive.x);
+				// 	}
 
-					ImGui::Checkbox("Emissive texture", &material->hasEmissiveTexture);
-					if (material->hasEmissiveTexture)
-					{
-						if (ImGui::ImageButton((void*)(intptr_t)material->emissiveTexture, ImVec2(64, 64), ImVec2(0, 1), ImVec2(1, 0)))
-						{
-							selectedTexture = &material->emissiveTexture;
-							textureDialog.Open();
-						}
-					}
+				// 	ImGui::Checkbox("Emissive texture", &material->hasEmissiveTexture);
+				// 	if (material->hasEmissiveTexture)
+				// 	{
+				// 		if (ImGui::ImageButton((void*)(intptr_t)material->emissiveTexture, ImVec2(64, 64), ImVec2(0, 1), ImVec2(1, 0)))
+				// 		{
+				// 			selectedTexture = &material->emissiveTexture;
+				// 			textureDialog.Open();
+				// 		}
+				// 	}
 
-					if (material->hasEmissive || material->hasEmissiveTexture)
-					{
-						ImGui::SliderFloat("Emissive factor", &material->emissiveFactor, 0.0f, 10.0f);
-					}
+				// 	if (material->hasEmissive || material->hasEmissiveTexture)
+				// 	{
+				// 		ImGui::SliderFloat("Emissive factor", &material->emissiveFactor, 0.0f, 10.0f);
+				// 	}
 
-					ImGui::Checkbox("Normal map", &material->hasNormalMap);
-					if (material->hasNormalMap)
-					{
-						if (ImGui::ImageButton((void*)(intptr_t)material->normalMap, ImVec2(64, 64), ImVec2(0, 1), ImVec2(1, 0)))
-						{
-							selectedTexture = &material->normalMap;
-							textureDialog.Open();
-						}
-					}
+				// 	ImGui::Checkbox("Normal map", &material->hasNormalMap);
+				// 	if (material->hasNormalMap)
+				// 	{
+				// 		if (ImGui::ImageButton((void*)(intptr_t)material->normalMap, ImVec2(64, 64), ImVec2(0, 1), ImVec2(1, 0)))
+				// 		{
+				// 			selectedTexture = &material->normalMap;
+				// 			textureDialog.Open();
+				// 		}
+				// 	}
 
-					ImGui::Checkbox("AO map", &material->hasAmbientOcclusionMap);
-					if (material->hasAmbientOcclusionMap)
-					{
-						if (ImGui::ImageButton((void*)(intptr_t)material->ambientOcclusionMap, ImVec2(64, 64), ImVec2(0, 1), ImVec2(1, 0)))
-						{
-							selectedTexture = &material->ambientOcclusionMap;
-							textureDialog.Open();
-						}
-					}
-				}
+				// 	ImGui::Checkbox("AO map", &material->hasAmbientOcclusionMap);
+				// 	if (material->hasAmbientOcclusionMap)
+				// 	{
+				// 		if (ImGui::ImageButton((void*)(intptr_t)material->ambientOcclusionMap, ImVec2(64, 64), ImVec2(0, 1), ImVec2(1, 0)))
+				// 		{
+				// 			selectedTexture = &material->ambientOcclusionMap;
+				// 			textureDialog.Open();
+				// 		}
+				// 	}
+				// }
 			}
 			ImGui::End();
 
@@ -458,14 +465,19 @@ i32 main()
 
 				ImGui::Separator();
 
+				auto renderableView = g_world.world.view<Renderable>();
+
 				ImGui::Text("Render stats");
-				ImGui::Text("Drawing %d models", (i32)g_scene.models.size());
+				ImGui::Text("Drawing %d models", (i32)renderableView.size());
 				i64 vertexTotal   = 0;
 				i64 triangleTotal = 0;
-				for (i32 i = 0; i < g_scene.models.size(); ++i)
+				for (i32 i = 0; i < renderableView.size(); ++i)
 				{
-					i64 vertexCount   = g_scene.models[i].mesh->vertexCount;
-					i64 triangleCount = g_scene.models[i].mesh->indexCount / 3;
+					auto entity     = renderableView[i];
+					auto renderable = renderableView.get<Renderable>(entity);
+
+					i64 vertexCount   = renderable.mesh->vertexCount;
+					i64 triangleCount = renderable.mesh->indexCount / 3;
 					ImGui::Text("\tModel %d has %lld vertices and %lld triangles", i, vertexCount, triangleCount);
 					vertexTotal += vertexCount;
 					triangleTotal += triangleCount;
@@ -627,11 +639,12 @@ static void DropCallback(GLFWwindow* window, i32 count, const char** paths)
 		std::string ext = GetFileExtension(paths[i]);
 		if (ext == "hdr")
 		{
-			LoadEnvironment(paths[i], &g_scene.env);
+			LoadEnvironment(paths[i], g_env);
 		}
 		else
 		{
-			g_scene.models = LoadScene(paths[i]);
+			g_world.world.clear();
+			LoadScene(paths[i], &g_world);
 		}
 	}
 }

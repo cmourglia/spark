@@ -8,6 +8,7 @@
 
 #include <glad/glad.h>
 #include <glm/glm.hpp>
+#include <entt/fwd.hpp>
 
 #include <vector>
 
@@ -138,6 +139,12 @@ struct Mesh
 	void DrawInstanced(u32 instanceCount) const;
 };
 
+struct Renderable
+{
+	std::shared_ptr<Material> material;
+	std::shared_ptr<Mesh>     mesh;
+};
+
 struct RenderContext
 {
 	glm::vec3 eyePosition;
@@ -190,24 +197,17 @@ struct Light
 	f32       outerAngle;
 };
 
-struct Scene
-{
-	Environment        env;
-	std::vector<Model> models;
-	std::vector<Light> lights;
-};
-
 class Renderer
 {
 public:
 	void Initialize(const glm::vec2& initSize);
-	void Render(const CameraInfos& camera, const Scene& scene);
+	void Render(const CameraInfos& camera, entt::registry& scene);
 
 	void Resize(const glm::vec2& newSize);
 
 private:
-	void ShadowPass(const Scene& scene);
-	void LightPass(const CameraInfos& camera, const Scene& scene);
+	void ShadowPass(entt::registry& scene);
+	void LightPass(const CameraInfos& camera, entt::registry& scene);
 	void ResolveMSAA();
 	void Bloom();
 	void Compose();
@@ -236,6 +236,8 @@ public:
 
 	// Final render texture
 	u32 outputTexture;
+
+	Environment env;
 
 private:
 	glm::vec2 m_framebufferSize;

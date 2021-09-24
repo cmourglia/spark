@@ -2,4 +2,6 @@
 
 #include "renderer/renderer.h"
 
-std::vector<Model> LoadScene(const char* filename);
+#include "world/world.h"
+
+bool LoadScene(const char* filename, World* world);
