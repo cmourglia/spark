@@ -1,5 +1,7 @@
 #pragma once
 
+#include <Beard/Macros.h>
+
 #include <glm/glm.hpp>
 #include <glm/gtc/quaternion.hpp>
 
@@ -27,7 +29,9 @@ struct Transform
 	glm::mat4 transform;
 };
 
-struct World
+struct orlWorld
 {
 	entt::registry world;
 };
+
+void Update(f32 dt, World* world);

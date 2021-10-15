@@ -1,18 +1,18 @@
 #include <Beard/Macros.h>
 
-#include "core/utils.h"
+#include <Spark/Core/Utils.h>
 
-#include "renderer/program.h"
-#include "renderer/material.h"
-#include "renderer/environment.h"
-#include "renderer/render_primitives.h"
-#include "renderer/renderer.h"
-#include "renderer/texture.h"
-#include "renderer/frame_stats.h"
+#include <Spark/Renderer/Program.h>
+#include <Spark/Renderer/Material.h>
+#include <Spark/Renderer/Environment.h>
+#include <Spark/Renderer/RenderPrimitives.h>
+#include <Spark/Renderer/Renderer.h>
+#include <Spark/Renderer/Texture.h>
+#include <Spark/Renderer/FrameStats.h>
 
-#include "assets/asset.h"
+#include <Spark/Assets/Asset.h>
 
-#include "world/world.h"
+#include <Spark/World/World.h>
 
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
@@ -90,14 +90,14 @@ struct Camera
 void SetupUI(GLFWwindow* window);
 void RenderUI(const std::vector<Model>& models);
 
-[[clang::no_destroy]] global_variable Beard::HashMap<u32, Program> g_programs;
+global_variable Beard::HashMap<u32, Program> g_programs;
 
-[[clang::no_destroy]] global_variable Camera g_camera;
-// [[clang::no_destroy]] global_variable f32    g_lastScroll = 0.0f;
-[[clang::no_destroy]] global_variable f32 g_viewportX = 0.0f, g_viewportY = 0.0f;
-[[clang::no_destroy]] global_variable f32 g_viewportW = 0.0f, g_viewportH = 0.0f;
+global_variable Camera g_camera;
+//  global_variable f32    g_lastScroll = 0.0f;
+global_variable f32 g_viewportX = 0.0f, g_viewportY = 0.0f;
+global_variable f32 g_viewportW = 0.0f, g_viewportH = 0.0f;
 
-[[clang::no_destroy]] global_variable World g_world;
+global_variable World g_world;
 
 global_variable Environment* g_env = nullptr;
 
@@ -143,7 +143,7 @@ i32 main()
 
 	SetupUI(window);
 
-	Renderer renderer;
+	Renderer& renderer = Renderer::Get();
 	renderer.Initialize(glm::vec2(g_width, g_height));
 
 	g_env = &renderer.env;

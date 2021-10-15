@@ -1,8 +1,8 @@
 #pragma once
 
-#include "renderer/environment.h"
-#include "renderer/material.h"
-#include "renderer/program.h"
+#include <Spark/Renderer/Environment.h>
+#include <Spark/Renderer/Material.h>
+#include <Spark/Renderer/Program.h>
 
 #include <Beard/Macros.h>
 
@@ -200,6 +200,11 @@ struct Light
 class Renderer
 {
 public:
+	NONCOPYABLE(Renderer);
+	NONMOVEABLE(Renderer);
+
+	static Renderer& Get();
+
 	void Initialize(const glm::vec2& initSize);
 	void Render(const CameraInfos& camera, entt::registry& scene);
 
@@ -240,6 +245,9 @@ public:
 	Environment env;
 
 private:
+	Renderer()  = default;
+	~Renderer() = default;
+
 	glm::vec2 m_framebufferSize;
 
 	glm::vec2 m_bloomSize;

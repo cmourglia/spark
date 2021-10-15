@@ -1,7 +1,7 @@
 #pragma once
 
-#include "program.h"
-#include "environment.h"
+#include <Spark/Renderer/Program.h>
+#include <Spark/Renderer/Environment.h>
 
 #include <glad/glad.h>
 

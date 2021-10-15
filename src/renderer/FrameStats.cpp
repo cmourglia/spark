@@ -1,4 +1,4 @@
-#include "renderer/frame_stats.h"
+#include <Spark/Renderer/FrameStats.h>
 
 FrameStats* FrameStats::Get()
 {

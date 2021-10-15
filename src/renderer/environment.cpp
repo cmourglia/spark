@@ -1,10 +1,10 @@
-#include "environment.h"
+#include <Spark/Renderer/Environment.h>
 
-#include "renderer/program.h"
-#include "renderer/render_primitives.h"
-#include "renderer/frame_stats.h"
+#include <Spark/Renderer/Program.h>
+#include <Spark/Renderer/RenderPrimitives.h>
+#include <Spark/Renderer/FrameStats.h>
 
-#include "core/utils.h"
+#include <Spark/Core/Utils.h>
 
 #include <Beard/Macros.h>
 #include <Beard/Timer.h>

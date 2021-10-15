@@ -1,11 +1,11 @@
-#include "assets/asset.h"
+#include <Spark/Assets/Asset.h>
 
-#include "core/utils.h"
+#include <Spark/Renderer/Material.h>
+#include <Spark/Renderer/Texture.h>
+#include <Spark/Renderer/Renderer.h>
+#include <Spark/Renderer/FrameStats.h>
 
-#include "renderer/material.h"
-#include "renderer/texture.h"
-#include "renderer/renderer.h"
-#include "renderer/frame_stats.h"
+#include <Spark/Core/Utils.h>
 
 #include <Beard/Timer.h>
 #include <Beard/Array.h>

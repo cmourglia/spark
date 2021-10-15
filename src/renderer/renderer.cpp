@@ -1,15 +1,21 @@
-#include "renderer.h"
+#include <Spark/Renderer/Renderer.h>
 
-#include "renderer/render_primitives.h"
-#include "renderer/frame_stats.h"
+#include <Spark/Renderer/RenderPrimitives.h>
+#include <Spark/Renderer/FrameStats.h>
 
-#include "world/world.h"
+#include <Spark/World/World.h>
 
-#include "core/utils.h"
+#include <Spark/Core/Utils.h>
 
 #include <Beard/Timer.h>
 
 #include <entt/entt.hpp>
+
+Renderer& Renderer::Get()
+{
+	static Renderer renderer;
+	return renderer;
+}
 
 void Renderer::Initialize(const glm::vec2& initialSize)
 {

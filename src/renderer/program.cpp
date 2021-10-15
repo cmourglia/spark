@@ -1,4 +1,4 @@
-#include "program.h"
+#include <Spark/Renderer/Program.h>
 
 #include <Beard/IO.h>
 #include <Beard/HashMap.h>

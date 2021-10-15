@@ -1,6 +1,6 @@
-#include "renderer/texture.h"
+#include <Spark/Renderer/Texture.h>
 
-#include "core/utils.h"
+#include <Spark/Core/Utils.h>
 
 #include <Beard/HashMap.h>
 

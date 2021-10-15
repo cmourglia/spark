@@ -1,4 +1,4 @@
-#include "material.h"
+#include <Spark/Renderer/Material.h>
 
 Material::Material(const char* matName, const char* baseVS, const char* baseFS)
     : m_name(matName)

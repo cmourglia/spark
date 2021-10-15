@@ -1,7 +1,6 @@
+#include <Spark/Core/Utils.h>
 
 #include <Beard/Macros.h>
-#include "core/utils.h"
-
 #include <Beard/Array.h>
 
 #include <stdint.h>
