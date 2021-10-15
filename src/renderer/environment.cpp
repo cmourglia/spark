@@ -4,8 +4,10 @@
 #include "renderer/render_primitives.h"
 #include "renderer/frame_stats.h"
 
-#include "core/defines.h"
 #include "core/utils.h"
+
+#include <Beard/Macros.h>
+#include <Beard/Timer.h>
 
 #include <glad/glad.h>
 
@@ -18,9 +20,9 @@ extern std::vector<glm::vec3> PrecomputeDFG(u32 w, u32 h, u32 sampleCount); // 1
 
 void LoadEnvironment(const char* filename, Environment* env)
 {
-	FrameStats* stats = FrameStats::Get();
-	Timer       timer;
-	Timer       procTimer;
+	FrameStats*  stats = FrameStats::Get();
+	Beard::Timer timer;
+	Beard::Timer procTimer;
 
 	if (!glIsTexture(env->iblDFG))
 	{
@@ -55,7 +57,7 @@ void LoadEnvironment(const char* filename, Environment* env)
 	glCreateTextures(GL_TEXTURE_2D, 1, &equirectangularTexture);
 
 	// glTextureStorage2D(equirectangularTexture, levels, GL_RGB32F, w, h);
-	glTextureStorage2D(equirectangularTexture, log2f(Min(w, h)), GL_RGB32F, w, h);
+	glTextureStorage2D(equirectangularTexture, log2f(Beard::Min(w, h)), GL_RGB32F, w, h);
 	glTextureSubImage2D(equirectangularTexture, 0, 0, 0, w, h, GL_RGB, GL_FLOAT, data);
 	glTextureParameteri(equirectangularTexture, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 	glTextureParameteri(equirectangularTexture, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
@@ -112,7 +114,7 @@ void LoadEnvironment(const char* filename, Environment* env)
 
 	for (u32 mip = 0; mip < mipLevels; ++mip, mipSize /= 2)
 	{
-		const f32 roughness = Max(0.05f, (f32)mip / (f32)(mipLevels - 1));
+		const f32 roughness = Beard::Max(0.05f, (f32)mip / (f32)(mipLevels - 1));
 
 		glBindImageTexture(1, env->radianceMap, mip, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA32F);
 		prefilterEnvmapProgram->SetUniform("u_roughness", roughness);

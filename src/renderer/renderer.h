@@ -4,13 +4,13 @@
 #include "renderer/material.h"
 #include "renderer/program.h"
 
-#include "core/defines.h"
+#include <Beard/Macros.h>
 
 #include <glad/glad.h>
 #include <glm/glm.hpp>
 #include <entt/fwd.hpp>
 
-#include <vector>
+#include <Beard/Array.h>
 
 enum DataType
 {
@@ -63,7 +63,7 @@ struct LayoutItem
 	GLsizeiptr GetSize() const;
 };
 
-using Layout = std::vector<LayoutItem>;
+using Layout = Beard::Array<LayoutItem>;
 
 struct VertexDataInfos
 {
@@ -97,33 +97,33 @@ struct Mesh
 	GLenum  indexType;
 
 	Mesh();
-	Mesh(const std::vector<Vertex>& vertices, const std::vector<GLushort>& indices);
-	Mesh(const std::vector<Vertex>& vertices, const std::vector<GLuint>& indices);
+	Mesh(const Beard::Array<Vertex>& vertices, const Beard::Array<GLushort>& indices);
+	Mesh(const Beard::Array<Vertex>& vertices, const Beard::Array<GLuint>& indices);
 	Mesh(const VertexDataInfos& vertexDataInfos, const IndexDataInfos& indexDataInfos);
 
 	static GLsizeiptr AlignedSize(GLsizeiptr size, GLsizeiptr align);
 
-	void SetLayout(const Layout& layout, const std::vector<GLsizeiptr>& offsets);
+	void SetLayout(const Layout& layout, const Beard::Array<GLsizeiptr>& offsets);
 
 	template <typename IndexType>
-	void SetData(const std::vector<Vertex>& vertices, const std::vector<IndexType>& indices)
+	void SetData(const Beard::Array<Vertex>& vertices, const Beard::Array<IndexType>& indices)
 	{
 		GLint alignment = GL_NONE;
 		glGetIntegerv(GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT, &alignment);
 
 		glCreateVertexArrays(1, &vao);
 
-		const GLsizeiptr indexSize        = indices.size() * sizeof(IndexType);
+		const GLsizeiptr indexSize        = indices.DataSize();
 		const GLsizeiptr alignedIndexSize = AlignedSize(indexSize, alignment);
 
-		const GLsizeiptr vertexSize        = vertices.size() * sizeof(Vertex);
+		const GLsizeiptr vertexSize        = vertices.DataSize();
 		const GLsizeiptr alignedVertexSize = AlignedSize(vertexSize, alignment);
 
 		glCreateBuffers(1, &buffer);
 		glNamedBufferStorage(buffer, alignedIndexSize + alignedVertexSize, nullptr, GL_DYNAMIC_STORAGE_BIT);
 
-		glNamedBufferSubData(buffer, 0, indexSize, indices.data());
-		glNamedBufferSubData(buffer, alignedIndexSize, vertexSize, vertices.data());
+		glNamedBufferSubData(buffer, 0, indexSize, indices.Data());
+		glNamedBufferSubData(buffer, alignedIndexSize, vertexSize, vertices.Data());
 
 		glVertexArrayVertexBuffer(vao, 0, buffer, alignedIndexSize, sizeof(Vertex));
 		glVertexArrayElementBuffer(vao, buffer);

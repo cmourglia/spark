@@ -1,38 +1,9 @@
 #pragma once
 
-#include "defines.h"
+#include <Beard/Macros.h>
 
 #include <glm/vec2.hpp>
 #include <chrono>
-
-constexpr f32 Pi        = 3.14159265359f;
-constexpr f32 Tau       = 2.0f * Pi;
-constexpr f32 ToRadians = Pi / 180.0f;
-constexpr f32 ToDegrees = 180.0f / Pi;
-
-template <typename T>
-inline constexpr T Min(const T a, const T b)
-{
-	return a < b ? a : b;
-}
-
-template <typename T>
-inline constexpr T Max(const T a, const T b)
-{
-	return a > b ? a : b;
-}
-
-template <typename T>
-inline constexpr T Clamp(const T x, const T a, const T b)
-{
-	return Min(b, Max(x, a));
-}
-
-template <typename T>
-inline constexpr T Saturate(const T x)
-{
-	return Clamp(x, T(0), T(1));
-}
 
 inline glm::vec2 Hammersley(u32 i, f32 invN)
 {
@@ -65,27 +36,3 @@ constexpr inline f32 Pow(const f32 x)
 
 	return res;
 }
-
-struct Timer
-{
-	Timer()
-	{
-		start = Clock::now();
-	}
-
-	f64 Tick()
-	{
-		auto t = Clock::now();
-
-		std::chrono::duration<double, std::milli> dt = t - start;
-
-		start = t;
-
-		return dt.count();
-	}
-
-	using Clock     = std::chrono::high_resolution_clock;
-	using TimePoint = Clock::time_point;
-
-	TimePoint start;
-};

@@ -7,6 +7,8 @@
 
 #include "core/utils.h"
 
+#include <Beard/Timer.h>
+
 #include <entt/entt.hpp>
 
 void Renderer::Initialize(const glm::vec2& initialSize)
@@ -73,7 +75,7 @@ void Renderer::Resize(const glm::vec2& newSize)
 		m_bloomSize.x += m_bloomComputeWorkGroupSize - ((i32)m_bloomSize.x % m_bloomComputeWorkGroupSize);
 		m_bloomSize.y += m_bloomComputeWorkGroupSize - ((i32)m_bloomSize.y % m_bloomComputeWorkGroupSize);
 
-		i32 mipCount  = log2(Min(m_bloomSize.x, m_bloomSize.y));
+		i32 mipCount  = log2(Beard::Min(m_bloomSize.x, m_bloomSize.y));
 		m_bloomPasses = mipCount - 2;
 		glCreateTextures(GL_TEXTURE_2D, 3, bloomTextures);
 		glTextureStorage2D(bloomTextures[0], mipCount, GL_RGBA32F, m_bloomSize.x, m_bloomSize.y);
@@ -101,9 +103,9 @@ void Renderer::Resize(const glm::vec2& newSize)
 
 void Renderer::Render(const CameraInfos& camera, entt::registry& scene)
 {
-	FrameStats* stats = FrameStats::Get();
-	Timer       timer;
-	Timer       frameTimer;
+	FrameStats*  stats = FrameStats::Get();
+	Beard::Timer timer;
+	Beard::Timer frameTimer;
 
 	Program::UpdateAllPrograms();
 	stats->frame.updatePrograms = timer.Tick();
@@ -119,14 +121,14 @@ void Renderer::Render(const CameraInfos& camera, entt::registry& scene)
 
 void Renderer::ShadowPass(entt::registry& scene)
 {
-	FrameStats* stats = FrameStats::Get();
-	Timer       timer;
+	FrameStats*  stats = FrameStats::Get();
+	Beard::Timer timer;
 }
 
 void Renderer::LightPass(const CameraInfos& camera, entt::registry& scene)
 {
-	FrameStats* stats = FrameStats::Get();
-	Timer       timer;
+	FrameStats*  stats = FrameStats::Get();
+	Beard::Timer timer;
 
 	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, m_msaaFB);
 
@@ -190,8 +192,8 @@ void Renderer::LightPass(const CameraInfos& camera, entt::registry& scene)
 
 void Renderer::ResolveMSAA()
 {
-	FrameStats* stats = FrameStats::Get();
-	Timer       timer;
+	FrameStats*  stats = FrameStats::Get();
+	Beard::Timer timer;
 
 	glBlitNamedFramebuffer(m_msaaFB,
 	                       m_resolveFB,
@@ -218,10 +220,10 @@ void Renderer::Bloom()
 		return;
 	}
 
-	FrameStats* stats = FrameStats::Get();
-	Timer       timer;
+	FrameStats*  stats = FrameStats::Get();
+	Beard::Timer timer;
 
-	Timer bloomTimer;
+	Beard::Timer bloomTimer;
 
 	m_bloomProgram->Bind();
 
@@ -313,8 +315,8 @@ void Renderer::Bloom()
 
 void Renderer::Compose()
 {
-	FrameStats* stats = FrameStats::Get();
-	Timer       timer;
+	FrameStats*  stats = FrameStats::Get();
+	Beard::Timer timer;
 
 	// Final render
 	m_outputProgram->Bind();
@@ -370,17 +372,17 @@ Mesh::Mesh()
 {
 }
 
-Mesh::Mesh(const std::vector<Vertex>& vertices, const std::vector<GLushort>& indices)
-    : indexCount(indices.size())
-    , vertexCount(vertices.size())
+Mesh::Mesh(const Beard::Array<Vertex>& vertices, const Beard::Array<GLushort>& indices)
+    : indexCount(indices.ElementCount())
+    , vertexCount(vertices.ElementCount())
     , indexType(GL_UNSIGNED_SHORT)
 {
 	SetData(vertices, indices);
 }
 
-Mesh::Mesh(const std::vector<Vertex>& vertices, const std::vector<GLuint>& indices)
-    : indexCount(indices.size())
-    , vertexCount(vertices.size())
+Mesh::Mesh(const Beard::Array<Vertex>& vertices, const Beard::Array<GLuint>& indices)
+    : indexCount(indices.ElementCount())
+    , vertexCount(vertices.ElementCount())
     , indexType(GL_UNSIGNED_INT)
 {
 	SetData(vertices, indices);
@@ -454,11 +456,11 @@ Mesh::Mesh(const VertexDataInfos& vertexDataInfos, const IndexDataInfos& indexDa
 		i32        vboIndex   = 0;
 		GLsizeiptr vboBasePtr = alignedIndexSize;
 
-		std::unordered_map<const GLubyte*, GLsizeiptr> insertedData;
+		Beard::HashMap<const GLubyte*, GLsizeiptr> insertedData;
 
 		for (const auto& entry : vertexDataInfos.layout)
 		{
-			if (insertedData.find(entry.data) == insertedData.end())
+			if (insertedData.Find(entry.data) == insertedData.end())
 			{
 				glNamedBufferSubData(buffer, vboBasePtr, entry.dataSize, entry.data);
 
@@ -490,10 +492,10 @@ GLsizeiptr Mesh::AlignedSize(GLsizeiptr size, GLsizeiptr align)
 	return size + (align - size % align);
 }
 
-void Mesh::SetLayout(const Layout& layout, const std::vector<GLsizeiptr>& offsets)
+void Mesh::SetLayout(const Layout& layout, const Beard::Array<GLsizeiptr>& offsets)
 {
-	assert(offsets.size() == layout.size());
-	for (size_t i = 0; i < layout.size(); ++i)
+	assert(offsets.ElementCount() == layout.ElementCount());
+	for (size_t i = 0; i < layout.ElementCount(); ++i)
 	{
 		const auto& entry = layout[i];
 		glEnableVertexArrayAttrib(vao, entry.bindingPoint);

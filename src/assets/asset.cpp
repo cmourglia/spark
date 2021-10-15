@@ -7,6 +7,9 @@
 #include "renderer/renderer.h"
 #include "renderer/frame_stats.h"
 
+#include <Beard/Timer.h>
+#include <Beard/Array.h>
+
 #include <entt/entt.hpp>
 
 #include <assimp/Importer.hpp>
@@ -106,11 +109,11 @@ inline std::shared_ptr<Material> ProcessMaterial(aiMaterial* inputMaterial, cons
 
 std::shared_ptr<Mesh> ProcessMesh(aiMesh* inputMesh, const aiScene* scene)
 {
-	std::vector<Vertex> vertices;
-	std::vector<u32>    indices;
+	Beard::Array<Vertex> vertices;
+	Beard::Array<u32>    indices;
 
-	vertices.reserve(inputMesh->mNumVertices);
-	indices.reserve(inputMesh->mNumFaces * 3);
+	vertices.Reserve(inputMesh->mNumVertices);
+	indices.Reserve(inputMesh->mNumFaces * 3);
 
 	const aiVector3D* inVertices  = inputMesh->mVertices;
 	const aiVector3D* inNormals   = inputMesh->mNormals;
@@ -131,7 +134,7 @@ std::shared_ptr<Mesh> ProcessMesh(aiMesh* inputMesh, const aiScene* scene)
 			vertex.texcoord    = {t.x, t.y};
 		}
 
-		vertices.push_back(vertex);
+		vertices.Add(vertex);
 	}
 
 	const aiFace* inFaces = inputMesh->mFaces;
@@ -140,7 +143,7 @@ std::shared_ptr<Mesh> ProcessMesh(aiMesh* inputMesh, const aiScene* scene)
 		const aiFace face = *inFaces++;
 		for (u32 j = 0; j < face.mNumIndices; ++j)
 		{
-			indices.push_back(face.mIndices[j]);
+			indices.Add(face.mIndices[j]);
 		}
 	}
 
@@ -192,7 +195,7 @@ inline void ProcessNode(aiNode*                      node,
 
 bool LoadScene(const char* filename, World* world)
 {
-	Timer timer;
+	Beard::Timer timer;
 
 	Assimp::Importer importer;
 

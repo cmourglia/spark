@@ -1,6 +1,6 @@
 #pragma once
 
-#include "core/defines.h"
+#include <Beard/Macros.h>
 
 struct Environment
 {

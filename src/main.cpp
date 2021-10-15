@@ -1,4 +1,5 @@
-#include "core/defines.h"
+#include <Beard/Macros.h>
+
 #include "core/utils.h"
 
 #include "renderer/program.h"
@@ -26,10 +27,11 @@
 #include <imgui_impl_opengl3.h>
 #include "imfilebrowser.h"
 
-#include <vector>
+#include <Beard/Array.h>
+#include <Beard/HashMap.h>
+
 #include <filesystem>
 #include <chrono>
-#include <unordered_map>
 #include <unordered_set>
 #include <filesystem>
 
@@ -74,9 +76,10 @@ struct Camera
 
 	glm::mat4 GetView()
 	{
-		const f32 x = distance * sinf(theta * ToRadians) * sinf(phi * ToRadians);
-		const f32 y = distance * cosf(theta * ToRadians);
-		const f32 z = distance * sinf(theta * ToRadians) * cosf(phi * ToRadians);
+		using Beard::Math::DegToRad;
+		const f32 x = distance * sinf(theta * DegToRad) * sinf(phi * DegToRad);
+		const f32 y = distance * cosf(theta * DegToRad);
+		const f32 z = distance * sinf(theta * DegToRad) * cosf(phi * DegToRad);
 
 		position = glm::vec3(x, y, z) + center;
 
@@ -87,7 +90,7 @@ struct Camera
 void SetupUI(GLFWwindow* window);
 void RenderUI(const std::vector<Model>& models);
 
-[[clang::no_destroy]] global_variable std::unordered_map<u32, Program> g_programs;
+[[clang::no_destroy]] global_variable Beard::HashMap<u32, Program> g_programs;
 
 [[clang::no_destroy]] global_variable Camera g_camera;
 // [[clang::no_destroy]] global_variable f32    g_lastScroll = 0.0f;
@@ -258,8 +261,9 @@ i32 main()
 
 				if (size != lastSize)
 				{
-					cameraProj = glm::perspective(60.0f * ToRadians, (f32)size.x / size.y, 0.1f, 5000.0f), renderer.Resize(size);
-					lastSize   = size;
+					cameraProj = glm::perspective(60.0f * Beard::Math::DegToRad, (f32)size.x / size.y, 0.1f, 5000.0f),
+					renderer.Resize(size);
+					lastSize = size;
 				}
 
 				ImTextureID id;
@@ -555,7 +559,7 @@ static void MouseMoveCallback(GLFWwindow* window, f64 x, f64 y)
 		const f64 dy = 0.1f * (y - lastY);
 
 		g_camera.phi += dx;
-		g_camera.theta = Clamp(g_camera.theta + (f32)dy, 10.0f, 170.0f);
+		g_camera.theta = Beard::Clamp(g_camera.theta + (f32)dy, 10.0f, 170.0f);
 
 		lastX = x;
 		lastY = y;
@@ -599,7 +603,7 @@ static void WheelCallback(GLFWwindow* window, f64 x, f64 y)
 
 			const f32 distance = g_camera.distance - (f32)y * multiplier;
 
-			g_camera.distance = Clamp(distance, minDistance, maxDistance);
+			g_camera.distance = Beard::Clamp(distance, minDistance, maxDistance);
 		}
 	}
 }

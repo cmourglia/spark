@@ -1,37 +1,17 @@
 #include "program.h"
 
+#include <Beard/IO.h>
+#include <Beard/HashMap.h>
+
 #include <iostream>
 #include <string>
-#include <unordered_map>
 #include <regex>
 
-std::unordered_map<std::string, Program> g_programsByName;
+Beard::StringHashMap<Program> g_programsByName;
 
 inline std::string GetShaderFullPath(const char* filename)
 {
 	return std::string("resources/shaders/") + filename;
-}
-
-inline std::string GetFileContent(const char* filename)
-{
-	FILE* file = fopen(filename, "r");
-	if (!file)
-	{
-		return "";
-	}
-
-	defer(fclose(file));
-
-	fseek(file, SEEK_SET, SEEK_END);
-	long filesize = ftell(file);
-	rewind(file);
-
-	std::string fileContent;
-	fileContent.resize(filesize);
-	filesize = (size_t)fread(fileContent.data(), 1, filesize, file);
-	fileContent.resize(filesize);
-
-	return fileContent;
 }
 
 inline std::string ParseShader(const char* input, int level = 0)
@@ -90,7 +70,7 @@ inline std::string ParseShader(const char* input, int level = 0)
 
 			auto filename = line.substr(i + 1, j - i - 1);
 
-			auto src = GetFileContent(GetShaderFullPath(filename.c_str()).c_str());
+			auto src = Beard::IO::ReadWholeFile(GetShaderFullPath(filename.c_str()).c_str());
 			content += ParseShader(src.c_str(), level + 1);
 			content += "\n"; // Just in case
 		}
@@ -105,7 +85,7 @@ inline std::string ParseShader(const char* input, int level = 0)
 
 inline u32 CompileShader(const char* filename, GLenum shaderType, const std::vector<const char*>& defines)
 {
-	std::string src = GetFileContent(filename);
+	std::string src = Beard::IO::ReadWholeFile(filename);
 	if (src.empty())
 	{
 		return 0;
@@ -145,7 +125,7 @@ inline u32 CompileShader(const char* filename, GLenum shaderType, const std::vec
 
 Program* Program::MakeRender(const char* name, const char* vsfile, const char* fsfile, const StringArray& defines)
 {
-	if (!g_programsByName.contains(name))
+	if (!g_programsByName.Contains(name))
 	{
 		Program program(name);
 
@@ -170,7 +150,7 @@ Program* Program::MakeRender(const char* name, const char* vsfile, const char* f
 
 Program* Program::MakeCompute(const char* name, const char* csfile, const StringArray& defines)
 {
-	if (!g_programsByName.contains(name))
+	if (!g_programsByName.Contains(name))
 	{
 		Program program(name);
 
@@ -188,7 +168,7 @@ Program* Program::MakeCompute(const char* name, const char* csfile, const String
 
 Program* Program::GetProgramByName(const char* name)
 {
-	if (g_programsByName.contains(name))
+	if (g_programsByName.Contains(name))
 	{
 		return &g_programsByName[name];
 	}
@@ -342,7 +322,7 @@ void Program::Build()
 
 void Program::GetUniformInfos()
 {
-	m_uniforms.clear();
+	m_uniforms.Clear();
 
 	GLint uniformCount = 0;
 	glGetProgramiv(m_id, GL_ACTIVE_UNIFORMS, &uniformCount);
@@ -363,7 +343,7 @@ void Program::GetUniformInfos()
 
 			GLint location = glGetUniformLocation(m_id, uniformName);
 
-			m_uniforms.emplace(std::make_pair(std::string(uniformName, length), location));
+			m_uniforms.Add(std::string(uniformName, length), location);
 		}
 
 		delete[] uniformName;
@@ -372,6 +352,6 @@ void Program::GetUniformInfos()
 
 GLint Program::GetLocation(const char* name) const
 {
-	auto it = m_uniforms.find(name);
+	auto it = m_uniforms.Find(name);
 	return (it == m_uniforms.end()) ? -1 : it->second;
 }

@@ -1,6 +1,7 @@
 #pragma once
 
-#include "core/defines.h"
+#include <Beard/Macros.h>
+#include <Beard/HashMap.h>
 
 #include <glad/glad.h>
 
@@ -8,7 +9,6 @@
 
 #include <string>
 #include <filesystem>
-#include <unordered_map>
 
 struct shader
 {
@@ -58,7 +58,7 @@ private:
 
 	std::string m_name = nullptr;
 
-	std::unordered_map<std::string, GLint> m_uniforms;
+	Beard::StringHashMap<GLint> m_uniforms;
 
 	GLuint              m_id = 0;
 	std::vector<shader> m_shaders;

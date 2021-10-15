@@ -26,6 +26,8 @@ SOFTWARE.
 
 #pragma once
 
+#include <Beard/Array.h>
+
 #include <array>
 #include <cstring>
 #include <filesystem>
@@ -33,7 +35,6 @@ SOFTWARE.
 #include <memory>
 #include <set>
 #include <string>
-#include <vector>
 #include <version>
 
 #ifndef IMGUI_VERSION
@@ -103,13 +104,13 @@ public:
 	// returns all selected filenames.
 	// when ImGuiFileBrowserFlags_MultipleSelection is enabled, use this
 	// instead of GetSelected
-	std::vector<std::filesystem::path> GetMultiSelected() const;
+	Beard::Array<std::filesystem::path> GetMultiSelected() const;
 
 	// set selected filename to empty
 	void ClearSelected();
 
 	// set file type filters. eg. { ".h", ".cpp", ".hpp", ".cc", ".inl" }
-	void SetTypeFilters(const std::vector<const char*>& typeFilters);
+	void SetTypeFilters(const Beard::Array<const char*>& typeFilters);
 
 private:
 	class ScopeGuard
@@ -155,8 +156,8 @@ private:
 
 	std::string statusStr_;
 
-	std::vector<const char*> typeFilters_;
-	int                      typeFilterIndex_;
+	Beard::Array<const char*> typeFilters_;
+	int                       typeFilterIndex_;
 
 	std::filesystem::path           pwd_;
 	std::set<std::filesystem::path> selectedFilenames_;
@@ -168,7 +169,7 @@ private:
 		std::string           showName;
 		std::filesystem::path extension;
 	};
-	std::vector<FileRecord> fileRecords_;
+	Beard::Array<FileRecord> fileRecords_;
 
 	// IMPROVE: truncate when selectedFilename_.length() > inputNameBuf_.size() - 1
 	static constexpr size_t                                INPUT_NAME_BUF_SIZE = 512;
@@ -200,7 +201,7 @@ inline ImGui::FileBrowser::FileBrowser(ImGuiFileBrowserFlags flags)
 	SetTitle("file browser");
 	SetPwd(std::filesystem::current_path());
 
-	typeFilters_.clear();
+	typeFilters_.Clear();
 	typeFilterIndex_ = 0;
 
 #ifdef _WIN32
@@ -428,7 +429,7 @@ inline void ImGui::FileBrowser::Display()
 
 		for (auto& rsc : fileRecords_)
 		{
-			if (!rsc.isDir && typeFilters_.size() > 0 && static_cast<size_t>(typeFilterIndex_) < typeFilters_.size() &&
+			if (!rsc.isDir && typeFilters_.ElementCount() > 0 && static_cast<size_t>(typeFilterIndex_) < typeFilters_.ElementCount() &&
 			    !(rsc.extension == typeFilters_[typeFilterIndex_]))
 				continue;
 
@@ -531,11 +532,11 @@ inline void ImGui::FileBrowser::Display()
 		Text("%s", statusStr_.c_str());
 	}
 
-	if (!typeFilters_.empty())
+	if (!typeFilters_.IsEmpty())
 	{
 		SameLine();
 		PushItemWidth(8 * GetFontSize());
-		Combo("##type_filters", &typeFilterIndex_, typeFilters_.data(), int(typeFilters_.size()));
+		Combo("##type_filters", &typeFilterIndex_, typeFilters_.Data(), int(typeFilters_.ElementCount()));
 		PopItemWidth();
 	}
 }
@@ -579,14 +580,14 @@ inline std::filesystem::path ImGui::FileBrowser::GetSelected() const
 	return pwd_ / *selectedFilenames_.begin();
 }
 
-inline std::vector<std::filesystem::path> ImGui::FileBrowser::GetMultiSelected() const
+inline Beard::Array<std::filesystem::path> ImGui::FileBrowser::GetMultiSelected() const
 {
 	if (selectedFilenames_.empty())
 		return {pwd_};
-	std::vector<std::filesystem::path> ret;
-	ret.reserve(selectedFilenames_.size());
+	Beard::Array<std::filesystem::path> ret;
+	ret.Reserve(selectedFilenames_.size());
 	for (auto& s : selectedFilenames_)
-		ret.push_back(pwd_ / s);
+		ret.Add(pwd_ / s);
 	return ret;
 }
 
@@ -597,7 +598,7 @@ inline void ImGui::FileBrowser::ClearSelected()
 	ok_                 = false;
 }
 
-inline void ImGui::FileBrowser::SetTypeFilters(const std::vector<const char*>& typeFilters)
+inline void ImGui::FileBrowser::SetTypeFilters(const Beard::Array<const char*>& typeFilters)
 {
 	typeFilters_     = typeFilters;
 	typeFilterIndex_ = 0;
@@ -625,7 +626,7 @@ inline void ImGui::FileBrowser::SetPwdUncatched(const std::filesystem::path& pwd
 		rcd.extension = p.path().filename().extension();
 
 		rcd.showName = (rcd.isDir ? "[D] " : "[F] ") + u8StrToStr(p.path().filename().u8string());
-		fileRecords_.push_back(rcd);
+		fileRecords_.Add(rcd);
 	}
 
 	std::sort(fileRecords_.begin(),

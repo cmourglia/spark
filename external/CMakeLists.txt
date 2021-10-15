@@ -1,10 +1,7 @@
-add_library(stb STATIC stb.cpp)
-target_include_directories(stb PUBLIC stb)
-
 add_library(glad STATIC glad/src/glad.c)
 target_include_directories(glad PUBLIC glad/include)
 
-add_subdirectory(glm)
+add_subdirectory(BeardLibrary)
 
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
@@ -39,9 +36,6 @@ foreach(BUILD ${DISABLED_ASSIMP_BUILDS})
     set(ASSIMP_BUILD_${BUILD}_IMPORTER OFF CACHE BOOL "" FORCE)
 endforeach()
 
-if(MSVC)
-    # add_compile_options(/Wv:18)
-endif()
 add_subdirectory(assimp)
 target_compile_options(assimp PRIVATE $<$<CXX_COMPILER_ID:Clang>:-Wno-deprecated-array-compare>)
 target_compile_options(assimp PRIVATE $<$<CXX_COMPILER_ID:MSVC>:/Wv:18>)

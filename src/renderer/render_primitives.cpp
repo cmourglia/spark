@@ -1,6 +1,6 @@
 #include "render_primitives.h"
 
-#include "core/defines.h"
+#include <Beard/Macros.h>
 
 #include <glad/glad.h>
 

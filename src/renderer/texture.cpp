@@ -2,17 +2,16 @@
 
 #include "core/utils.h"
 
+#include <Beard/HashMap.h>
+
 #include <stb_image.h>
 #include <glad/glad.h>
 
-#include <unordered_map>
-
-static std::unordered_map<std::string, u32> g_textures;
+static Beard::StringHashMap<u32> g_textures;
 
 u32 LoadTexture(const std::string& filename)
 {
-	auto it = g_textures.find(filename);
-	if (it != g_textures.end())
+	if (auto it = g_textures.Find(filename); it != g_textures.end())
 	{
 		return it->second;
 	}
@@ -32,7 +31,7 @@ u32 LoadTexture(const std::string& filename)
 	GLuint texture;
 	glCreateTextures(GL_TEXTURE_2D, 1, &texture);
 
-	const i32 levels = log2f(Min(w, h));
+	const i32 levels = log2f(Beard::Min(w, h));
 
 	GLenum format, internalFormat;
 	switch (c)
@@ -61,7 +60,7 @@ u32 LoadTexture(const std::string& filename)
 
 	stbi_image_free(data);
 
-	g_textures.insert(std::make_pair(filename, texture));
+	g_textures.Add(filename, texture);
 
 	return texture;
 }
