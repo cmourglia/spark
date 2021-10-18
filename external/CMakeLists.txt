@@ -41,3 +41,5 @@ target_compile_options(assimp PRIVATE $<$<CXX_COMPILER_ID:Clang>:-Wno-deprecated
 target_compile_options(assimp PRIVATE $<$<CXX_COMPILER_ID:MSVC>:/Wv:18>)
 
 add_subdirectory(entt)
+
+add_subdirectory(tinygltf)

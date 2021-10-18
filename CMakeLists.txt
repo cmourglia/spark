@@ -60,7 +60,7 @@ add_executable(${PROJECT_NAME}
     ${WORLD_INC}
 )
 
-target_link_libraries(${PROJECT_NAME} PRIVATE glm glfw glad stb_image imgui assimp EnTT BeardLibrary)
+target_link_libraries(${PROJECT_NAME} PRIVATE glm glfw glad stb_image imgui assimp EnTT BeardLibrary tinygltf)
 target_include_directories(${PROJECT_NAME} PRIVATE src/include)
 target_compile_definitions(${PROJECT_NAME} PRIVATE $<$<CONFIG:Debug>:_DEBUG=1> NOMINMAX _CRT_SECURE_NO_WARNINGS)
 
