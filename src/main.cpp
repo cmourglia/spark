@@ -13,6 +13,7 @@
 #include <Spark/Assets/Asset.h>
 
 #include <Spark/World/World.h>
+#include <Spark/World/Entity.h>
 
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
@@ -29,6 +30,7 @@
 
 #include <Beard/Array.h>
 #include <Beard/HashMap.h>
+#include <Beard/Math.h>
 
 #include <filesystem>
 #include <chrono>
@@ -48,23 +50,14 @@ static void DropCallback(GLFWwindow* window, i32 count, const char** paths);
 
 void DebugOutput(GLenum source, GLenum type, u32 id, GLenum severity, GLsizei length, const char* message, const void* userParam);
 
-static i32 g_width, g_height;
-
-enum RenderMode
-{
-	RenderMode_Default = 0,
-	RenderMode_IBL_DFG,
-	RenderMode_Count,
-};
-
-u32 g_renderMode = RenderMode_Default;
+static i32 g_Width, g_Height;
 
 std::string GetFileExtension(const std::string& filename)
 {
 	return filename.substr(filename.find_last_of(".") + 1);
 }
 
-struct Camera
+struct OrbitCamera
 {
 	f32 phi      = 45.0f;
 	f32 theta    = 45.0f;
@@ -90,16 +83,16 @@ struct Camera
 void SetupUI(GLFWwindow* window);
 void RenderUI(const std::vector<Model>& models);
 
-global_variable Beard::HashMap<u32, Program> g_programs;
+global_variable Beard::HashMap<u32, Program> g_Programs;
 
-global_variable Camera g_camera;
+global_variable OrbitCamera g_Camera;
 //  global_variable f32    g_lastScroll = 0.0f;
-global_variable f32 g_viewportX = 0.0f, g_viewportY = 0.0f;
-global_variable f32 g_viewportW = 0.0f, g_viewportH = 0.0f;
+global_variable f32 g_ViewportX = 0.0f, g_ViewportY = 0.0f;
+global_variable f32 g_ViewportW = 0.0f, g_ViewportH = 0.0f;
 
-global_variable World g_world;
+global_variable World g_World;
 
-global_variable Environment* g_env = nullptr;
+global_variable Environment* g_Env = nullptr;
 
 i32 main()
 {
@@ -127,7 +120,7 @@ i32 main()
 	glfwMakeContextCurrent(window);
 	glfwSwapInterval(1);
 
-	glfwGetFramebufferSize(window, &g_width, &g_height);
+	glfwGetFramebufferSize(window, &g_Width, &g_Height);
 
 	if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
 	{
@@ -144,16 +137,18 @@ i32 main()
 	SetupUI(window);
 
 	Renderer& renderer = Renderer::Get();
-	renderer.Initialize(glm::vec2(g_width, g_height));
+	renderer.Initialize(glm::vec2(g_Width, g_Height));
 
-	g_env = &renderer.env;
+	g_Env = &renderer.env;
 
-	LoadEnvironment("resources/env/Frozen_Waterfall_Ref.hdr", g_env);
+	LoadEnvironment("resources/env/Frozen_Waterfall_Ref.hdr", g_Env);
 
 	// g_scene.models = LoadScene(R"(external\glTF-Sample-Models\2.0\DamagedHelmet\glTF\DamagedHelmet.gltf)");
 	// LoadScene(R"(external\glTF-Sample-Models\2.0\MetalRoughSpheres\glTF\MetalRoughSpheres.gltf)");
 	// g_scene.models = LoadScene("resources/models/blender_probe/probe.glb");
-	LoadScene("resources/models/3spheres.glb", &g_world);
+	// LoadScene("resources/models/3spheres.glb", &g_World);
+	// LoadScene(R"(external\glTF-Sample-Models\2.0\AnimatedCube\glTF\AnimatedCube.gltf)", &g_World);
+	LoadScene(R"(external\glTF-Sample-Models\2.0\SimpleSkin\glTF\SimpleSkin.gltf)", &g_World);
 
 	ImGui::FileBrowser textureDialog;
 	textureDialog.SetTitle("Open texture...");
@@ -161,18 +156,17 @@ i32 main()
 
 	static glm::vec2 lastSize(0, 0);
 
-	static glm::mat4 cameraProj = glm::mat4(1.0f);
+	auto  cameraEntity    = g_World.CreateEntity();
+	auto& cameraComponent = cameraEntity.AddComponent<CameraComponent>();
 
 	while (!glfwWindowShouldClose(window))
 	{
+		cameraEntity.SetTransform(g_Camera.GetView());
+		cameraComponent.position = g_Camera.position;
+
 		if (lastSize.x != 0 && lastSize.y != 0)
 		{
-			CameraInfos cameraInfos = {
-			    .view     = g_camera.GetView(),
-			    .proj     = cameraProj,
-			    .position = g_camera.position,
-			};
-			renderer.Render(cameraInfos, g_world.world);
+			g_World.Update();
 		}
 
 		ImGuiIO& io = ImGui::GetIO();
@@ -220,7 +214,7 @@ i32 main()
 		{
 			ImGui::DockBuilderRemoveNode(dockspace_id);
 			ImGui::DockBuilderAddNode(dockspace_id, ImGuiDockNodeFlags_DockSpace);
-			ImGui::DockBuilderSetNodeSize(dockspace_id, ImVec2((f32)g_width, (f32)g_height));
+			ImGui::DockBuilderSetNodeSize(dockspace_id, ImVec2((f32)g_Width, (f32)g_Height));
 
 			ImGuiID dockMainID  = dockspace_id;
 			ImGuiID dockIDLeft  = ImGui::DockBuilderSplitNode(dockMainID, ImGuiDir_Left, 0.20f, nullptr, &dockMainID);
@@ -252,28 +246,23 @@ i32 main()
 				vMax.x -= (f32)wx;
 				vMax.y -= (f32)wy;
 
-				g_viewportX = vMin.x;
-				g_viewportY = vMin.y;
-				g_viewportW = vMax.x - vMin.x;
-				g_viewportH = vMax.y - vMin.y;
+				g_ViewportX = vMin.x;
+				g_ViewportY = vMin.y;
+				g_ViewportW = vMax.x - vMin.x;
+				g_ViewportH = vMax.y - vMin.y;
 
-				glm::vec2 size(g_viewportW, g_viewportH);
+				glm::vec2 size(g_ViewportW, g_ViewportH);
 
 				if (size != lastSize)
 				{
-					cameraProj = glm::perspective(60.0f * Beard::Math::DegToRad, (f32)size.x / size.y, 0.1f, 5000.0f),
+					cameraComponent.proj = glm::perspective(60.0f * Beard::Math::DegToRad, (f32)size.x / size.y, 0.1f, 5000.0f);
 					renderer.Resize(size);
 					lastSize = size;
 				}
 
 				ImTextureID id;
-				switch (g_renderMode)
-				{
-					default:
-						id = (void*)(intptr_t)renderer.outputTexture;
-						ImGui::Image(id, ImVec2(size.x, size.y), ImVec2(0, 1), ImVec2(1, 0));
-				}
-				// ImTextureID
+				id = (void*)(intptr_t)renderer.outputTexture;
+				ImGui::Image(id, ImVec2(size.x, size.y), ImVec2(0, 1), ImVec2(1, 0));
 			}
 			ImGui::End();
 
@@ -281,11 +270,11 @@ i32 main()
 
 			ImGui::Begin("Entities");
 			{
-				const auto& view = g_world.world.view<Name>();
+				const auto& view = g_World.GetRegistry().view<NameComponent>();
 
 				for (i32 i = 0; i < view.size(); ++i)
 				{
-					if (ImGui::Selectable(view.get<Name>(view[i]).name.c_str(), selectedEntity == i))
+					if (ImGui::Selectable(view.get<NameComponent>(view[i]).name.c_str(), selectedEntity == i))
 					{
 						selectedEntity = i;
 					}
@@ -339,7 +328,8 @@ i32 main()
 				// 	ImGui::Checkbox("Albedo texture", &material->hasAlbedoTexture);
 				// 	if (material->hasAlbedoTexture)
 				// 	{
-				// 		if (ImGui::ImageButton((void*)(intptr_t)material->albedoTexture, ImVec2(64, 64), ImVec2(0, 1), ImVec2(1, 0)))
+				// 		if (ImGui::ImageButton((void*)(intptr_t)material->albedoTexture, ImVec2(64, 64), ImVec2(0, 1),
+				// ImVec2(1, 0)))
 				// 		{
 				// 			selectedTexture = &material->albedoTexture;
 				// 			textureDialog.Open();
@@ -351,7 +341,8 @@ i32 main()
 				// 	ImGui::Checkbox("Roughness texture", &material->hasRoughnessTexture);
 				// 	if (material->hasRoughnessTexture)
 				// 	{
-				// 		if (ImGui::ImageButton((void*)(intptr_t)material->roughnessTexture, ImVec2(64, 64), ImVec2(0, 1), ImVec2(1, 0)))
+				// 		if (ImGui::ImageButton((void*)(intptr_t)material->roughnessTexture, ImVec2(64, 64), ImVec2(0,
+				// 1), ImVec2(1, 0)))
 				// 		{
 				// 			selectedTexture = &material->roughnessTexture;
 				// 			textureDialog.Open();
@@ -363,7 +354,8 @@ i32 main()
 				// 	ImGui::Checkbox("Metallic texture", &material->hasMetallicTexture);
 				// 	if (material->hasMetallicTexture)
 				// 	{
-				// 		if (ImGui::ImageButton((void*)(intptr_t)material->metallicTexture, ImVec2(64, 64), ImVec2(0, 1), ImVec2(1, 0)))
+				// 		if (ImGui::ImageButton((void*)(intptr_t)material->metallicTexture, ImVec2(64, 64), ImVec2(0, 1),
+				// ImVec2(1, 0)))
 				// 		{
 				// 			selectedTexture = &material->metallicTexture;
 				// 			textureDialog.Open();
@@ -392,7 +384,8 @@ i32 main()
 				// 	ImGui::Checkbox("Emissive texture", &material->hasEmissiveTexture);
 				// 	if (material->hasEmissiveTexture)
 				// 	{
-				// 		if (ImGui::ImageButton((void*)(intptr_t)material->emissiveTexture, ImVec2(64, 64), ImVec2(0, 1), ImVec2(1, 0)))
+				// 		if (ImGui::ImageButton((void*)(intptr_t)material->emissiveTexture, ImVec2(64, 64), ImVec2(0, 1),
+				// ImVec2(1, 0)))
 				// 		{
 				// 			selectedTexture = &material->emissiveTexture;
 				// 			textureDialog.Open();
@@ -407,7 +400,8 @@ i32 main()
 				// 	ImGui::Checkbox("Normal map", &material->hasNormalMap);
 				// 	if (material->hasNormalMap)
 				// 	{
-				// 		if (ImGui::ImageButton((void*)(intptr_t)material->normalMap, ImVec2(64, 64), ImVec2(0, 1), ImVec2(1, 0)))
+				// 		if (ImGui::ImageButton((void*)(intptr_t)material->normalMap, ImVec2(64, 64), ImVec2(0, 1),
+				// ImVec2(1, 0)))
 				// 		{
 				// 			selectedTexture = &material->normalMap;
 				// 			textureDialog.Open();
@@ -417,7 +411,8 @@ i32 main()
 				// 	ImGui::Checkbox("AO map", &material->hasAmbientOcclusionMap);
 				// 	if (material->hasAmbientOcclusionMap)
 				// 	{
-				// 		if (ImGui::ImageButton((void*)(intptr_t)material->ambientOcclusionMap, ImVec2(64, 64), ImVec2(0, 1), ImVec2(1, 0)))
+				// 		if (ImGui::ImageButton((void*)(intptr_t)material->ambientOcclusionMap, ImVec2(64, 64), ImVec2(0,
+				// 1), ImVec2(1, 0)))
 				// 		{
 				// 			selectedTexture = &material->ambientOcclusionMap;
 				// 			textureDialog.Open();
@@ -469,7 +464,7 @@ i32 main()
 
 				ImGui::Separator();
 
-				auto renderableView = g_world.world.view<Renderable>();
+				auto renderableView = g_World.GetRegistry().view<Renderable>();
 
 				ImGui::Text("Render stats");
 				ImGui::Text("Drawing %d models", (i32)renderableView.size());
@@ -528,7 +523,7 @@ bool movingCamera = false;
 
 inline bool inViewport(f64 x, f64 y)
 {
-	return (x >= g_viewportX && x <= (g_viewportX + g_viewportW)) && (y >= g_viewportY && y <= (g_viewportY + g_viewportH));
+	return (x >= g_ViewportX && x <= (g_ViewportX + g_ViewportW)) && (y >= g_ViewportY && y <= (g_ViewportY + g_ViewportH));
 }
 
 static void MouseButtonCallback(GLFWwindow* window, i32 button, i32 action, i32 mods)
@@ -558,8 +553,8 @@ static void MouseMoveCallback(GLFWwindow* window, f64 x, f64 y)
 		const f64 dx = 0.1f * (x - lastX);
 		const f64 dy = 0.1f * (y - lastY);
 
-		g_camera.phi += dx;
-		g_camera.theta = Beard::Clamp(g_camera.theta + (f32)dy, 10.0f, 170.0f);
+		g_Camera.phi += dx;
+		g_Camera.theta = Beard::Clamp(g_Camera.theta + (f32)dy, 10.0f, 170.0f);
 
 		lastX = x;
 		lastY = y;
@@ -571,11 +566,6 @@ static void KeyCallback(GLFWwindow* window, i32 key, i32 scancode, i32 action, i
 	if (key == GLFW_KEY_ESCAPE && action == GLFW_RELEASE)
 	{
 		glfwSetWindowShouldClose(window, GLFW_TRUE);
-	}
-
-	if ((key == GLFW_KEY_N) && ((mods & GLFW_MOD_CONTROL) == GLFW_MOD_CONTROL) && (action == GLFW_RELEASE))
-	{
-		g_renderMode = (g_renderMode + 1) % RenderMode_Count;
 	}
 
 	if (key == GLFW_KEY_F2 && action == GLFW_RELEASE)
@@ -599,19 +589,19 @@ static void WheelCallback(GLFWwindow* window, f64 x, f64 y)
 			constexpr f32 minDistance = 0.01f;
 			constexpr f32 maxDistance = 1000.0f;
 
-			const f32 multiplier = 2.5f * (g_camera.distance - minDistance) / (maxDistance - minDistance);
+			const f32 multiplier = 2.5f * (g_Camera.distance - minDistance) / (maxDistance - minDistance);
 
-			const f32 distance = g_camera.distance - (f32)y * multiplier;
+			const f32 distance = g_Camera.distance - (f32)y * multiplier;
 
-			g_camera.distance = Beard::Clamp(distance, minDistance, maxDistance);
+			g_Camera.distance = Beard::Clamp(distance, minDistance, maxDistance);
 		}
 	}
 }
 
 static void FramebufferSizeCallback(GLFWwindow* window, i32 width, i32 height)
 {
-	g_width  = width;
-	g_height = height;
+	g_Width  = width;
+	g_Height = height;
 }
 
 void SetupUI(GLFWwindow* window)
@@ -643,12 +633,17 @@ static void DropCallback(GLFWwindow* window, i32 count, const char** paths)
 		std::string ext = GetFileExtension(paths[i]);
 		if (ext == "hdr")
 		{
-			LoadEnvironment(paths[i], g_env);
+			LoadEnvironment(paths[i], g_Env);
 		}
 		else
 		{
-			g_world.world.clear();
-			LoadScene(paths[i], &g_world);
+			auto view = g_World.GetRegistry().view<Renderable>();
+			for (auto entity : view)
+			{
+				g_World.RemoveEntity(entity);
+			}
+
+			LoadScene(paths[i], &g_World);
 		}
 	}
 }

@@ -3,6 +3,7 @@
 #include <Spark/Core/Utils.h>
 
 #include <Beard/HashMap.h>
+#include <Beard/Math.h>
 
 #include <stb_image.h>
 #include <glad/glad.h>

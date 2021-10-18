@@ -56,7 +56,7 @@ private:
 	using ShaderTime  = std::pair<std::string, std::filesystem::file_time_type>;
 	using ShaderTimes = std::vector<ShaderTime>;
 
-	std::string m_name = nullptr;
+	std::string m_name;
 
 	Beard::StringHashMap<GLint> m_uniforms;
 

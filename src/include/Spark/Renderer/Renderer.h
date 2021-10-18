@@ -165,11 +165,13 @@ struct Model
 	void Draw(RenderContext* context) const;
 };
 
-struct CameraInfos
+struct CameraComponent
 {
-	glm::mat4 view;
 	glm::mat4 proj;
 	glm::vec3 position;
+	bool      active = true;
+
+	// Other params
 };
 
 enum BackgroundType
@@ -197,6 +199,8 @@ struct Light
 	f32       outerAngle;
 };
 
+class World;
+
 class Renderer
 {
 public:
@@ -206,13 +210,13 @@ public:
 	static Renderer& Get();
 
 	void Initialize(const glm::vec2& initSize);
-	void Render(const CameraInfos& camera, entt::registry& scene);
+	void Render(const World& world);
 
 	void Resize(const glm::vec2& newSize);
 
 private:
-	void ShadowPass(entt::registry& scene);
-	void LightPass(const CameraInfos& camera, entt::registry& scene);
+	void ShadowPass(const World& world);
+	void LightPass(const World& world);
 	void ResolveMSAA();
 	void Bloom();
 	void Compose();
@@ -230,17 +234,17 @@ public:
 		f32  intensity     = 1.0f;
 	} bloom;
 
-	u32 shadowMapArray;
+	u32 shadowMapArray = 0;
 
-	u32 msaaRenderTexture;
-	u32 resolveTexture;
-	u32 msaaDepthRenderBuffer;
+	u32 msaaRenderTexture     = 0;
+	u32 resolveTexture        = 0;
+	u32 msaaDepthRenderBuffer = 0;
 
 	// Post-process textures
-	u32 bloomTextures[3];
+	u32 bloomTextures[3] = {};
 
 	// Final render texture
-	u32 outputTexture;
+	u32 outputTexture = 0;
 
 	Environment env;
 
@@ -248,23 +252,23 @@ private:
 	Renderer()  = default;
 	~Renderer() = default;
 
-	glm::vec2 m_framebufferSize;
+	glm::vec2 m_framebufferSize = glm::vec2{0.0f, 0.0f};
 
-	glm::vec2 m_bloomSize;
-	i32       m_bloomPasses;
+	glm::vec2 m_bloomSize                 = glm::vec2{0.0f, 0.0f};
+	i32       m_bloomPasses               = 0;
 	i32       m_bloomComputeWorkGroupSize = 4;
 
-	u32 m_fbos[2];
+	u32 m_fbos[2] = {};
 
-	u32 m_matricesUBO;
-	u32 m_lightsSSBO;
+	u32 m_matricesUBO = 0;
+	u32 m_lightsSSBO  = 0;
 
 #define m_msaaFB m_fbos[0]
 #define m_resolveFB m_fbos[1]
 
-	Program* m_backgroundProgram;
+	Program* m_backgroundProgram = nullptr;
 
 	// Post-process compute shaders
-	Program* m_bloomProgram;
-	Program* m_outputProgram;
+	Program* m_bloomProgram  = nullptr;
+	Program* m_outputProgram = nullptr;
 };

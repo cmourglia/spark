@@ -8,6 +8,7 @@
 
 #include <Beard/Macros.h>
 #include <Beard/Timer.h>
+#include <Beard/Math.h>
 
 #include <glad/glad.h>
 
@@ -142,7 +143,7 @@ void LoadEnvironment(const char* filename, Environment* env)
 
 	Program* irradianceProgram = Program::GetProgramByName("irradiance");
 	irradianceProgram->Bind();
-	glBindTextureUnit(0, env->radianceMap); // glBindImageTexture(0, env->envMap, 0, GL_TRUE, 0, GL_READ_ONLY, GL_RGBA32F);
+	glBindTextureUnit(0, env->radianceMap);
 	glBindImageTexture(1, env->irradianceMap, 0, GL_TRUE, 0, GL_WRITE_ONLY, GL_RGBA32F);
 
 	glDispatchCompute(8, 8, 1);

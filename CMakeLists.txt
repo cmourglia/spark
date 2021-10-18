@@ -33,6 +33,8 @@ set(RENDERER_INC
 
 set(ASSETS_SRC
     src/Assets/Asset.cpp
+    src/Assets/LoadAssimpAsset.cpp
+    src/Assets/LoadGLTFAsset.cpp
 )
 
 set(ASSETS_INC
@@ -41,10 +43,12 @@ set(ASSETS_INC
 
 set(WORLD_SRC
     src/World/World.cpp
+    src/World/Entity.cpp
 )
 
 set(WORLD_INC
     src/include/Spark/World/World.h
+    src/include/Spark/World/Entity.h
 )
 
 add_executable(${PROJECT_NAME}

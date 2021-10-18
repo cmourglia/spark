@@ -7,31 +7,50 @@
 
 #include <entt/entt.hpp>
 
-struct Name
+struct NameComponent
 {
 	std::string name;
 };
 
-struct Position
+struct PositionComponent
 {
 	glm::vec3 position;
 	glm::quat orientation;
 };
 
-struct Velocity
+struct VelocityComponent
 {
 	glm::vec3 linearVelocity;
 	glm::quat angularVelocity;
 };
 
-struct Transform
+struct TransformComponent
 {
 	glm::mat4 transform;
 };
 
-struct orlWorld
-{
-	entt::registry world;
-};
+class Entity;
 
-void Update(f32 dt, World* world);
+class World
+{
+public:
+	void Update();
+
+	Entity CreateEntity();
+	void   RemoveEntity(Entity);
+	void   RemoveEntity(entt::entity);
+
+	Entity GetActiveCamera() const;
+
+	entt::registry& GetRegistry()
+	{
+		return m_Registry;
+	}
+	const entt::registry& GetRegistry() const
+	{
+		return m_Registry;
+	}
+
+private:
+	entt::registry m_Registry;
+};

@@ -2,6 +2,7 @@
 
 #include <Beard/Macros.h>
 #include <Beard/Array.h>
+#include <Beard/Math.h>
 
 #include <stdint.h>
 #include <stdlib.h>

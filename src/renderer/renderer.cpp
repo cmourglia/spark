@@ -4,10 +4,12 @@
 #include <Spark/Renderer/FrameStats.h>
 
 #include <Spark/World/World.h>
+#include <Spark/World/Entity.h>
 
 #include <Spark/Core/Utils.h>
 
 #include <Beard/Timer.h>
+#include <Beard/Math.h>
 
 #include <entt/entt.hpp>
 
@@ -107,7 +109,7 @@ void Renderer::Resize(const glm::vec2& newSize)
 	}
 }
 
-void Renderer::Render(const CameraInfos& camera, entt::registry& scene)
+void Renderer::Render(const World& world)
 {
 	FrameStats*  stats = FrameStats::Get();
 	Beard::Timer timer;
@@ -116,8 +118,8 @@ void Renderer::Render(const CameraInfos& camera, entt::registry& scene)
 	Program::UpdateAllPrograms();
 	stats->frame.updatePrograms = timer.Tick();
 
-	ShadowPass(scene);
-	LightPass(camera, scene);
+	ShadowPass(world);
+	LightPass(world);
 	ResolveMSAA();
 	Bloom();
 	Compose();
@@ -125,16 +127,19 @@ void Renderer::Render(const CameraInfos& camera, entt::registry& scene)
 	stats->renderTotal = frameTimer.Tick();
 }
 
-void Renderer::ShadowPass(entt::registry& scene)
+void Renderer::ShadowPass(const World& world)
 {
 	FrameStats*  stats = FrameStats::Get();
 	Beard::Timer timer;
 }
 
-void Renderer::LightPass(const CameraInfos& camera, entt::registry& scene)
+void Renderer::LightPass(const World& world)
 {
 	FrameStats*  stats = FrameStats::Get();
 	Beard::Timer timer;
+
+	auto  camera          = world.GetActiveCamera();
+	auto& cameraComponent = camera.GetComponent<CameraComponent>();
 
 	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, m_msaaFB);
 
@@ -147,14 +152,14 @@ void Renderer::LightPass(const CameraInfos& camera, entt::registry& scene)
 	glEnable(GL_DEPTH_TEST);
 	glDepthFunc(GL_LEQUAL);
 
-	RenderContext context = {
-	    .eyePosition = camera.position,
-	    .view        = camera.view,
-	    .proj        = camera.proj,
+	RenderContext context{
+	    .eyePosition = cameraComponent.position,
+	    .view        = camera.GetTransform(),
+	    .proj        = cameraComponent.proj,
 	    .env         = &env,
 	};
 
-	auto view = scene.view<const Transform, Renderable>();
+	auto view = world.GetRegistry().view<const TransformComponent, Renderable>();
 	view.each(
 	    [&context](const auto& transform, auto& renderable)
 	    {
