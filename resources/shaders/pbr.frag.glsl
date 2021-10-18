@@ -57,7 +57,7 @@ uniform sampler2D   s_iblDFG;
 
 #define MIN_PERCEPTUAL_ROUGHNESS 0.045
 
-#include "math_utils.glsl"
+#include "base_math.glsl"
 #include "pbr_utils.glsl"
 
 vec3 GetAlbedo()
