@@ -8,47 +8,53 @@ add_subdirectory(external)
 set(CORE_SRC )
 
 set(CORE_INC
-    src/include/Spark/Core/Utils.h)
+    src/include/Spark/Core/Spark_Utils.h
+    src/include/Spark/Core/Spark_Property.h
+)
 
 set(RENDERER_SRC
-    src/Renderer/Environment.cpp
-    src/Renderer/FrameStats.cpp
-    src/Renderer/GenDFG.cpp
-    src/Renderer/Material.cpp
-    src/Renderer/Program.cpp
-    src/Renderer/Renderer.cpp
-    src/Renderer/RenderPrimitives.cpp
-    src/Renderer/Texture.cpp
+    src/Renderer/Spark_Environment.cpp
+    src/Renderer/Spark_FrameStats.cpp
+    src/Renderer/Spark_GenDFG.cpp
+    src/Renderer/Spark_Material.cpp
+    src/Renderer/Spark_Mesh.cpp
+    src/Renderer/Spark_Program.cpp
+    src/Renderer/Spark_Renderer.cpp
+    src/Renderer/Spark_RenderPrimitives.cpp
+    src/Renderer/Spark_Texture.cpp
 )
 
 set(RENDERER_INC
-    src/include/Spark/Renderer/Environment.h
-    src/include/Spark/Renderer/FrameStats.h
-    src/include/Spark/Renderer/Material.h
-    src/include/Spark/Renderer/Program.h
-    src/include/Spark/Renderer/Renderer.h
-    src/include/Spark/Renderer/RenderPrimitives.h
-    src/include/Spark/Renderer/Texture.h
+    src/include/Spark/Renderer/Spark_Environment.h
+    src/include/Spark/Renderer/Spark_FrameStats.h
+    src/include/Spark/Renderer/Spark_Material.h
+    src/include/Spark/Renderer/Spark_Mesh.h
+    src/include/Spark/Renderer/Spark_Program.h
+    src/include/Spark/Renderer/Spark_Renderer.h
+    src/include/Spark/Renderer/Spark_RenderPrimitives.h
+    src/include/Spark/Renderer/Spark_Texture.h
 )
 
 set(ASSETS_SRC
-    src/Assets/Asset.cpp
-    src/Assets/LoadAssimpAsset.cpp
-    src/Assets/LoadGLTFAsset.cpp
+    src/Assets/Spark_Asset.cpp
+    src/Assets/Spark_LoadAssimpAsset.cpp
+    src/Assets/Spark_LoadGLTFAsset.cpp
 )
 
 set(ASSETS_INC
-    src/include/Spark/Assets/Asset.h
+    src/include/Spark/Assets/Spark_Asset.h
 )
 
 set(WORLD_SRC
-    src/World/World.cpp
-    src/World/Entity.cpp
+    src/World/Spark_World.cpp
+    src/World/Spark_Entity.cpp
+    src/World/Spark_AnimationSystem.cpp
 )
 
 set(WORLD_INC
-    src/include/Spark/World/World.h
-    src/include/Spark/World/Entity.h
+    src/include/Spark/World/Spark_World.h
+    src/include/Spark/World/Spark_Entity.h
+    src/include/Spark/World/Spark_AnimationSystem.h
 )
 
 add_executable(${PROJECT_NAME}

@@ -1,4 +1,4 @@
-#include <Spark/World/Entity.h>
+#include <Spark/World/Spark_Entity.h>
 
 const glm::mat4& Entity::GetTransform() const
 {

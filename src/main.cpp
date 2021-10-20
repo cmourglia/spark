@@ -1,19 +1,23 @@
 #include <Beard/Macros.h>
 
-#include <Spark/Core/Utils.h>
+#include <Spark/Core/Spark_Utils.h>
 
-#include <Spark/Renderer/Program.h>
-#include <Spark/Renderer/Material.h>
-#include <Spark/Renderer/Environment.h>
-#include <Spark/Renderer/RenderPrimitives.h>
-#include <Spark/Renderer/Renderer.h>
-#include <Spark/Renderer/Texture.h>
-#include <Spark/Renderer/FrameStats.h>
+#include <Spark/Renderer/Spark_Program.h>
+#include <Spark/Renderer/Spark_Material.h>
+#include <Spark/Renderer/Spark_Environment.h>
+#include <Spark/Renderer/Spark_RenderPrimitives.h>
+#include <Spark/Renderer/Spark_Renderer.h>
+#include <Spark/Renderer/Spark_Texture.h>
+#include <Spark/Renderer/Spark_FrameStats.h>
 
-#include <Spark/Assets/Asset.h>
+#include <Spark/Assets/Spark_Asset.h>
 
-#include <Spark/World/World.h>
-#include <Spark/World/Entity.h>
+#include <Spark/World/Spark_World.h>
+#include <Spark/World/Spark_Entity.h>
+
+#include <Beard/Array.h>
+#include <Beard/HashMap.h>
+#include <Beard/Math.h>
 
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
@@ -27,10 +31,6 @@
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_opengl3.h>
 #include "imfilebrowser.h"
-
-#include <Beard/Array.h>
-#include <Beard/HashMap.h>
-#include <Beard/Math.h>
 
 #include <filesystem>
 #include <chrono>
@@ -143,12 +143,15 @@ i32 main()
 
 	LoadEnvironment("resources/env/Frozen_Waterfall_Ref.hdr", g_Env);
 
-	// g_scene.models = LoadScene(R"(external\glTF-Sample-Models\2.0\DamagedHelmet\glTF\DamagedHelmet.gltf)");
-	// LoadScene(R"(external\glTF-Sample-Models\2.0\MetalRoughSpheres\glTF\MetalRoughSpheres.gltf)");
-	// g_scene.models = LoadScene("resources/models/blender_probe/probe.glb");
-	// LoadScene("resources/models/3spheres.glb", &g_World);
+	// LoadScene(R"(external\glTF-Sample-Models\2.0\MetalRoughSpheres\glTF\MetalRoughSpheres.gltf, &g_World)");
+	// LoadScene(R"(resources/models/blender_probe/probe.glb)", &g_World);
+	// LoadScene(R"(resources/models/3spheres.glb)", &g_World);
 	// LoadScene(R"(external\glTF-Sample-Models\2.0\AnimatedCube\glTF\AnimatedCube.gltf)", &g_World);
-	LoadScene(R"(external\glTF-Sample-Models\2.0\SimpleSkin\glTF\SimpleSkin.gltf)", &g_World);
+
+	// LoadScene(R"(external\glTF-Sample-Models\2.0\Box\glTF\Box.gltf)", &g_World);
+	LoadScene(R"(external\glTF-Sample-Models\2.0\Cube\glTF\Cube.gltf)", &g_World);
+	// LoadScene(R"(external\glTF-Sample-Models\2.0\DamagedHelmet\glTF\DamagedHelmet.gltf, &g_World)");
+	// LoadScene(R"(external\glTF-Sample-Models\2.0\SimpleSkin\glTF\SimpleSkin.gltf)", &g_World);
 
 	ImGui::FileBrowser textureDialog;
 	textureDialog.SetTitle("Open texture...");
@@ -285,12 +288,12 @@ i32 main()
 			ImGui::Begin("Light");
 			{
 				ImGui::Text("Background");
-				ImGui::RadioButton("None", &renderer.backgroundType, BackgroundType_None);
-				ImGui::RadioButton("Cubemap", &renderer.backgroundType, BackgroundType_Cubemap);
-				ImGui::RadioButton("Irradiance", &renderer.backgroundType, BackgroundType_Irradiance);
-				ImGui::RadioButton("Radiance", &renderer.backgroundType, BackgroundType_Radiance);
+				// ImGui::RadioButton("None", &renderer.backgroundType, (int)BackgroundType::None);
+				// ImGui::RadioButton("Cubemap", &renderer.backgroundType, (int)BackgroundType::Cubemap);
+				// ImGui::RadioButton("Irradiance", &renderer.backgroundType, (int)BackgroundType::Irradiance);
+				// ImGui::RadioButton("Radiance", &renderer.backgroundType, (int)BackgroundType::Radiance);
 
-				if (renderer.backgroundType == BackgroundType_Radiance) // Radiance ?
+				if (renderer.backgroundType == BackgroundType::Radiance)
 				{
 					ImGui::SliderInt("Mip level", &renderer.backgroundMipLevel, 0, 8);
 				}
@@ -475,8 +478,8 @@ i32 main()
 					auto entity     = renderableView[i];
 					auto renderable = renderableView.get<Renderable>(entity);
 
-					i64 vertexCount   = renderable.mesh->vertexCount;
-					i64 triangleCount = renderable.mesh->indexCount / 3;
+					i64 vertexCount   = renderable.mesh->GetMesh().vertexCount;
+					i64 triangleCount = renderable.mesh->GetMesh().indexCount / 3;
 					ImGui::Text("\tModel %d has %lld vertices and %lld triangles", i, vertexCount, triangleCount);
 					vertexTotal += vertexCount;
 					triangleTotal += triangleCount;

@@ -1,8 +1,8 @@
-#include <Spark/World/World.h>
+#include <Spark/World/Spark_World.h>
 
-#include <Spark/World/Entity.h>
+#include <Spark/World/Spark_Entity.h>
 
-#include <Spark/Renderer/Renderer.h>
+#include <Spark/Renderer/Spark_Renderer.h>
 
 void World::Update()
 {

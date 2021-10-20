@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Spark/World/World.h>
+#include <Spark/World/Spark_World.h>
 
 #include <Beard/Macros.h>
 

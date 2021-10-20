@@ -1,12 +1,12 @@
-#include <Spark/Renderer/Renderer.h>
+#include <Spark/Renderer/Spark_Renderer.h>
 
-#include <Spark/Renderer/RenderPrimitives.h>
-#include <Spark/Renderer/FrameStats.h>
+#include <Spark/Renderer/Spark_RenderPrimitives.h>
+#include <Spark/Renderer/Spark_FrameStats.h>
 
-#include <Spark/World/World.h>
-#include <Spark/World/Entity.h>
+#include <Spark/World/Spark_World.h>
+#include <Spark/World/Spark_Entity.h>
 
-#include <Spark/Core/Utils.h>
+#include <Spark/Core/Spark_Utils.h>
 
 #include <Beard/Timer.h>
 #include <Beard/Math.h>
@@ -172,25 +172,25 @@ void Renderer::LightPass(const World& world)
 
 	stats->frame.renderModels = timer.Tick();
 
-	if (backgroundType != BackgroundType_None)
+	if (backgroundType != BackgroundType::None)
 	{
 		m_backgroundProgram->Bind();
 		m_backgroundProgram->SetUniform("envmap", 0);
-		m_backgroundProgram->SetUniform("miplevel", backgroundType == BackgroundType_Radiance ? backgroundMipLevel : 0);
+		m_backgroundProgram->SetUniform("miplevel", backgroundType == BackgroundType::Radiance ? backgroundMipLevel : 0);
 		m_backgroundProgram->SetUniform("view", context.view);
 		m_backgroundProgram->SetUniform("proj", context.proj);
 
 		switch (backgroundType)
 		{
-			case BackgroundType_Cubemap:
+			case BackgroundType::Cubemap:
 				glBindTextureUnit(0, env.envMap);
 				break;
 
-			case BackgroundType_Radiance:
+			case BackgroundType::Radiance:
 				glBindTextureUnit(0, env.radianceMap);
 				break;
 
-			case BackgroundType_Irradiance:
+			case BackgroundType::Irradiance:
 				glBindTextureUnit(0, env.irradianceMap);
 				break;
 		}
@@ -345,188 +345,6 @@ void Renderer::Compose()
 	glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
 
 	stats->frame.finalCompositing = timer.Tick();
-}
-
-GLsizeiptr LayoutItem::GetSize() const
-{
-	GLsizeiptr dataSize = 0;
-
-	switch (dataType)
-	{
-		case DataType_Byte:
-		case DataType_UnsignedByte:
-			assert(sizeof(GLbyte) == sizeof(GLubyte));
-			dataSize = sizeof(GLbyte);
-			break;
-
-		case DataType_Short:
-		case DataType_UnsignedShort:
-		case DataType_HalfFloat:
-			assert(sizeof(GLshort) == sizeof(GLushort));
-			assert(sizeof(GLshort) == sizeof(GLhalf));
-			dataSize = sizeof(GLshort);
-			break;
-
-		case DataType_Int:
-		case DataType_UnsignedInt:
-		case DataType_Float:
-			assert(sizeof(GLint) == sizeof(GLuint));
-			assert(sizeof(GLint) == sizeof(GLfloat));
-			dataSize = sizeof(GLint);
-			break;
-	}
-
-	return dataSize * (GLsizeiptr)elementType;
-}
-
-Mesh::Mesh()
-{
-}
-
-Mesh::Mesh(const Beard::Array<Vertex>& vertices, const Beard::Array<GLushort>& indices)
-    : indexCount(indices.ElementCount())
-    , vertexCount(vertices.ElementCount())
-    , indexType(GL_UNSIGNED_SHORT)
-{
-	SetData(vertices, indices);
-}
-
-Mesh::Mesh(const Beard::Array<Vertex>& vertices, const Beard::Array<GLuint>& indices)
-    : indexCount(indices.ElementCount())
-    , vertexCount(vertices.ElementCount())
-    , indexType(GL_UNSIGNED_INT)
-{
-	SetData(vertices, indices);
-}
-
-Mesh::Mesh(const VertexDataInfos& vertexDataInfos, const IndexDataInfos& indexDataInfos)
-    : indexCount(indexDataInfos.indexCount)
-    , vertexCount(vertexDataInfos.bufferSize / vertexDataInfos.byteStride)
-    , indexType(indexDataInfos.indexType)
-{
-	GLint alignment = GL_NONE;
-	glGetIntegerv(GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT, &alignment);
-
-	glCreateVertexArrays(1, &vao);
-
-	const GLsizeiptr alignedIndexSize = AlignedSize(indexDataInfos.bufferSize, alignment);
-
-	GLsizeiptr alignedVertexSize = 0;
-
-	if (vertexDataInfos.singleBuffer)
-	{
-		alignedVertexSize = AlignedSize(vertexDataInfos.bufferSize, alignment);
-	}
-	else
-	{
-		for (const auto& entry : vertexDataInfos.layout)
-		{
-			alignedVertexSize += AlignedSize(entry.dataSize, alignment);
-		}
-	}
-
-	glCreateBuffers(1, &buffer);
-	glNamedBufferStorage(buffer, alignedIndexSize + alignedVertexSize, nullptr, GL_DYNAMIC_STORAGE_BIT);
-
-	glNamedBufferSubData(buffer, 0, indexDataInfos.bufferSize, indexDataInfos.data);
-	glVertexArrayElementBuffer(vao, buffer);
-
-	if (vertexDataInfos.singleBuffer)
-	{
-		i32        vboIndex   = 0;
-		GLsizeiptr vboBasePtr = alignedIndexSize;
-
-		const GLubyte* data = vertexDataInfos.layout[0].data;
-		glNamedBufferSubData(buffer, vboBasePtr, vertexDataInfos.bufferSize, data);
-
-		for (const auto& entry : vertexDataInfos.layout)
-		{
-			assert(entry.data == data);
-
-			glEnableVertexArrayAttrib(vao, entry.bindingPoint);
-			glVertexArrayAttribBinding(vao, entry.bindingPoint, vboIndex);
-
-			if (vertexDataInfos.interleaved)
-			{
-				glVertexArrayVertexBuffer(vao, vboIndex, buffer, vboBasePtr, vertexDataInfos.byteStride);
-				glVertexArrayAttribFormat(vao, entry.bindingPoint, entry.elementType, entry.dataType, GL_FALSE, entry.offset);
-			}
-			else
-			{
-				vboBasePtr += entry.offset;
-
-				glVertexArrayVertexBuffer(vao, vboIndex, buffer, vboBasePtr, entry.GetSize());
-				glVertexArrayAttribFormat(vao, entry.bindingPoint, entry.elementType, entry.dataType, GL_FALSE, 0);
-
-				++vboIndex;
-			}
-		}
-	}
-	else
-	{
-		i32        vboIndex   = 0;
-		GLsizeiptr vboBasePtr = alignedIndexSize;
-
-		Beard::HashMap<const GLubyte*, GLsizeiptr> insertedData;
-
-		for (const auto& entry : vertexDataInfos.layout)
-		{
-			if (insertedData.Find(entry.data) == insertedData.end())
-			{
-				glNamedBufferSubData(buffer, vboBasePtr, entry.dataSize, entry.data);
-
-				glVertexArrayVertexBuffer(vao, vboIndex, buffer, vboBasePtr, entry.GetSize());
-
-				insertedData[entry.data] = vboBasePtr;
-
-				vboBasePtr += AlignedSize(entry.dataSize, alignment);
-			}
-			else
-			{
-				glVertexArrayVertexBuffer(vao, vboIndex, buffer, insertedData[entry.data] + entry.offset, entry.GetSize());
-			}
-
-			glVertexArrayAttribFormat(vao, entry.bindingPoint, entry.elementType, entry.dataType, GL_FALSE, 0);
-			glEnableVertexArrayAttrib(vao, entry.bindingPoint);
-			glVertexArrayAttribBinding(vao, entry.bindingPoint, vboIndex);
-
-			++vboIndex;
-		}
-	}
-}
-
-GLsizeiptr Mesh::AlignedSize(GLsizeiptr size, GLsizeiptr align)
-{
-	return size;
-	if (size % align == 0)
-		return size;
-	return size + (align - size % align);
-}
-
-void Mesh::SetLayout(const Layout& layout, const Beard::Array<GLsizeiptr>& offsets)
-{
-	assert(offsets.ElementCount() == layout.ElementCount());
-	for (size_t i = 0; i < layout.ElementCount(); ++i)
-	{
-		const auto& entry = layout[i];
-		glEnableVertexArrayAttrib(vao, entry.bindingPoint);
-		glVertexArrayAttribFormat(vao, entry.bindingPoint, entry.elementType, entry.dataType, GL_FALSE, offsets[i]);
-		glVertexArrayAttribBinding(vao, entry.bindingPoint, 0);
-	}
-}
-
-void Mesh::Draw() const
-{
-	glBindVertexArray(vao);
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, buffer);
-	glDrawElements(GL_TRIANGLES, indexCount, indexType, nullptr);
-}
-
-void Mesh::DrawInstanced(u32 instanceCount) const
-{
-	glBindVertexArray(vao);
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, buffer);
-	glDrawElementsInstanced(GL_TRIANGLES, indexCount, indexType, nullptr, instanceCount);
 }
 
 void Model::Draw(RenderContext* context) const

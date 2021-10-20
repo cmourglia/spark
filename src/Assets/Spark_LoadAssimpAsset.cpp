@@ -1,16 +1,18 @@
-#include <Spark/Assets/Asset.h>
+#include <Spark/Assets/Spark_Asset.h>
 
-#include <Spark/World/Entity.h>
+#include <Spark/World/Spark_Entity.h>
 
-#include <Spark/Renderer/Material.h>
-#include <Spark/Renderer/Texture.h>
-#include <Spark/Renderer/Renderer.h>
-#include <Spark/Renderer/FrameStats.h>
+#include <Spark/Renderer/Spark_Material.h>
+#include <Spark/Renderer/Spark_Texture.h>
+#include <Spark/Renderer/Spark_Mesh.h>
+#include <Spark/Renderer/Spark_Renderer.h>
+#include <Spark/Renderer/Spark_FrameStats.h>
 
-#include <Spark/Core/Utils.h>
+#include <Spark/Core/Spark_Utils.h>
 
 #include <Beard/Timer.h>
 #include <Beard/Array.h>
+#include <Beard/Math.h>
 
 #include <entt/entt.hpp>
 
@@ -109,49 +111,51 @@ inline std::shared_ptr<Material> ProcessMaterial(aiMaterial* inputMaterial, cons
 	return material;
 }
 
-std::shared_ptr<Mesh> ProcessMesh(aiMesh* inputMesh, const aiScene* scene)
+std::shared_ptr<RenderMesh> ProcessMesh(aiMesh* inputMesh, const aiScene* scene)
 {
-	Beard::Array<Vertex> vertices;
-	Beard::Array<u32>    indices;
+	Mesh mesh = {};
 
-	vertices.Reserve(inputMesh->mNumVertices);
-	indices.Reserve(inputMesh->mNumFaces * 3);
+	mesh.positions.Resize(inputMesh->mNumVertices);
+	mesh.normals.Resize(inputMesh->mNumVertices);
+	mesh.texcoords.Reserve(inputMesh->mNumVertices);
+
+	mesh.indices.Resize(inputMesh->mNumFaces * 3 * sizeof(u32));
+
+	mesh.vertexCount = inputMesh->mNumVertices;
+	mesh.indexCount  = inputMesh->mNumFaces * 3;
+	mesh.indexType   = IndexType::Unsigned32;
 
 	const aiVector3D* inVertices  = inputMesh->mVertices;
 	const aiVector3D* inNormals   = inputMesh->mNormals;
 	const aiVector3D* inTexcoords = inputMesh->mTextureCoords[0];
 
-	for (u32 index = 0; index < inputMesh->mNumVertices; ++index)
+	memcpy(mesh.positions.Data(), inVertices, mesh.positions.DataSize());
+	memcpy(mesh.normals.Data(), inNormals, mesh.normals.DataSize());
+
+	if (inTexcoords != nullptr)
 	{
-		const aiVector3D v = *inVertices++;
-		const aiVector3D n = *inNormals++;
-
-		Vertex vertex;
-		vertex.position = {v.x, v.y, v.z};
-		vertex.normal   = {n.x, n.y, n.z};
-
-		if (inTexcoords)
+		for (u32 i = 0; i < inputMesh->mNumVertices; ++i)
 		{
-			const aiVector3D t = *inTexcoords++;
-			vertex.texcoord    = {t.x, t.y};
+			aiVector3D texcoord = inTexcoords[i];
+			mesh.texcoords.Add({texcoord.x, texcoord.y});
 		}
-
-		vertices.Add(vertex);
 	}
+
+	u32* indices = (u32*)mesh.indices.Data();
 
 	const aiFace* inFaces = inputMesh->mFaces;
 	for (u32 i = 0; i < inputMesh->mNumFaces; ++i)
 	{
-		const aiFace face = *inFaces++;
-		for (u32 j = 0; j < face.mNumIndices; ++j)
-		{
-			indices.Add(face.mIndices[j]);
-		}
+		aiFace face = inFaces[i];
+
+		indices[i * 3 + 0] = face.mIndices[0];
+		indices[i * 3 + 1] = face.mIndices[1];
+		indices[i * 3 + 2] = face.mIndices[2];
 	}
 
-	auto mesh = std::make_shared<Mesh>(vertices, indices);
+	auto renderMesh = std::make_shared<RenderMesh>(std::move(mesh));
 
-	return mesh;
+	return renderMesh;
 }
 
 inline void ProcessNode(aiNode*                      node,

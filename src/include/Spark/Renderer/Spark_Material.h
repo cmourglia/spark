@@ -1,7 +1,7 @@
 #pragma once
 
-#include <Spark/Renderer/Program.h>
-#include <Spark/Renderer/Environment.h>
+#include <Spark/Renderer/Spark_Program.h>
+#include <Spark/Renderer/Spark_Environment.h>
 
 #include <glad/glad.h>
 
@@ -15,16 +15,6 @@ struct Material
 	void     Bind(Program* program, const Environment* env);
 	Program* GetProgram() const;
 
-private:
-	std::vector<const char*> GetDefines() const;
-	std::string              GetUniqueName() const;
-
-private:
-	std::string m_name;
-	std::string m_baseVS;
-	std::string m_baseFS;
-
-public:
 	glm::vec3 albedo         = glm::vec3(0.5f, 0.5f, 0.5f);
 	f32       roughness      = 1.0f;
 	f32       metallic       = 1.0f;
@@ -49,5 +39,10 @@ public:
 	bool hasAmbientOcclusionMap      = false;
 
 private:
-	i32 m_padding : 5;
+	std::vector<const char*> GetDefines() const;
+	std::string              GetUniqueName() const;
+
+	std::string m_name;
+	std::string m_baseVS;
+	std::string m_baseFS;
 };

@@ -1,11 +1,10 @@
-#include <Spark/Renderer/Material.h>
+#include <Spark/Renderer/Spark_Material.h>
 
 Material::Material(const char* matName, const char* baseVS, const char* baseFS)
     : m_name(matName)
     , m_baseVS(baseVS)
     , m_baseFS(baseFS)
 {
-	(void)m_padding;
 }
 
 u32 Material::GetMask() const

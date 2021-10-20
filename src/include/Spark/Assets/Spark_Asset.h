@@ -1,5 +1,4 @@
 #pragma once
 
-#include <Spark/World/World.h>
-
+class World;
 bool LoadScene(const char* filename, World* world);

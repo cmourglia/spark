@@ -2,9 +2,6 @@ layout(location = 0) in vec3 in_position;
 layout(location = 1) in vec3 in_normal;
 layout(location = 2) in vec2 in_texcoord;
 
-#ifdef HAS_NORMAL_MAP
-#endif
-
 layout(location = 0) out vec4 out_color;
 
 uniform mat4 u_view;
@@ -145,7 +142,6 @@ mat3 CotangentFrame(vec3 N, vec3 p, vec2 uv)
 
 vec3 GetNormal()
 {
-	return normalize(in_normal);
 #ifdef HAS_NORMAL_MAP
 	vec3 normal    = normalize(in_normal);
 	vec3 normalTex = texture(s_normal, in_texcoord).rgb * 2.0 - vec3(1.0);
@@ -192,6 +188,7 @@ vec3 GetLightPos(int index)
 
 vec3 GetLightColor(int index)
 {
+	return vec3(50, 50, 50);
 
 	if (index == 0)
 	{
@@ -308,7 +305,7 @@ vec3 EvaluateDirectLighting(in vec3 n, in vec3 v, in PixelParams params)
 {
 	vec3 Lo = vec3(0.0);
 
-	for (int i = 0; i < 0; ++i)
+	for (int i = 0; i < 4; ++i)
 	{
 		vec3 lightVec = GetLightPos(i) - GetFragPos();
 
@@ -316,7 +313,7 @@ vec3 EvaluateDirectLighting(in vec3 n, in vec3 v, in PixelParams params)
 
 		float attenuation = 1.0 / dot(lightVec, lightVec);
 
-		vec3 illuminance = GetLightColor(i) * 0.2 * saturate(dot(n, l)) * attenuation;
+		vec3 illuminance = GetLightColor(i) * saturate(dot(n, l)) * attenuation;
 		vec3 luminance   = BRDF(n, v, l, params) * illuminance;
 
 		Lo += luminance;
@@ -390,7 +387,11 @@ void main()
 	PixelParams params;
 	GetPixelParams(params, max(dot(n, v), 1e-4));
 
-	vec3 color = EvaluateIBL(n, v, params) + EvaluateDirectLighting(n, v, params) + GetEmissive();
+	vec3 color = vec3(0.0);
+	color += EvaluateIBL(n, v, params);
+	// color += EvaluateDirectLighting(n, v, params);
+	color += GetEmissive();
+
 	color *= GetAmbientOcclusion();
 
 	out_color = vec4(color, 1.0);

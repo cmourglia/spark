@@ -1,4 +1,4 @@
-#include <Spark/Renderer/RenderPrimitives.h>
+#include <Spark/Renderer/Spark_RenderPrimitives.h>
 
 #include <Beard/Macros.h>
 

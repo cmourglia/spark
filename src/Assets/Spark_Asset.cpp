@@ -1,6 +1,6 @@
-#include <Spark/Assets/Asset.h>
+#include <Spark/Assets/Spark_Asset.h>
 
-#include <Spark/Renderer/FrameStats.h>
+#include <Spark/Renderer/Spark_FrameStats.h>
 
 #include <Beard/Timer.h>
 
@@ -16,7 +16,7 @@ bool LoadScene(const char* filename, World* world)
 	bool result = false;
 
 	auto ext = std::string(filename).substr(std::string(filename).find_last_of(".") + 1);
-	if (ext == "gltf")
+	if (ext == "gltf" || ext == "glb")
 	{
 		timer.Restart();
 		result = LoadGLTFScene(filename, world);
