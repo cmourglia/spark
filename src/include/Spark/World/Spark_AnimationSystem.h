@@ -1,25 +1,18 @@
 #pragma once
 
-struct KeyFrame
-{
-	// TODO
+struct KeyFrame {
+  // TODO
 };
 
-struct AnimationComponent
-{
-	// TODO
+struct AnimationComponent {
+  // TODO
 };
 
-struct Bone
-{
-	std::string name;
-	glm::mat4   bone;
+struct Bone {
+  std::string name;
+  glm::mat4 bone;
 };
 
-struct SkeletonComponent
-{
-};
+struct SkeletonComponent {};
 
-class AnimationSystem
-{
-};
+class AnimationSystem {};

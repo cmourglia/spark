@@ -1,66 +1,66 @@
 #pragma once
 
-#include <beard/core/macros.h>
 #include <beard/containers/hash_map.h>
+#include <beard/core/macros.h>
 
 #include <glad/glad.h>
 
 #include <glm/glm.hpp>
 
-#include <string>
 #include <filesystem>
+#include <string>
 
-struct shader
-{
-	GLenum                          type;
-	std::string                     filename;
-	std::filesystem::file_time_type time;
+struct shader {
+  GLenum type;
+  std::string filename;
+  std::filesystem::file_time_type time;
 };
 
-class Program
-{
-	using StringArray = std::vector<const char*>;
+class Program {
+  using StringArray = std::vector<const char*>;
 
-public:
-	static Program* MakeRender(const char*        name,
-	                           const char*        vsfile,
-	                           const char*        fsfile  = nullptr,
-	                           const StringArray& defines = StringArray());
-	static Program* MakeCompute(const char* name, const char* csfile, const StringArray& defines = StringArray());
-	static Program* GetProgramByName(const char* name);
-	static void     UpdateAllPrograms();
+ public:
+  static Program* MakeRender(const char* name,
+                             const char* vsfile,
+                             const char* fsfile = nullptr,
+                             const StringArray& defines = StringArray());
+  static Program* MakeCompute(const char* name,
+                              const char* csfile,
+                              const StringArray& defines = StringArray());
+  static Program* GetProgramByName(const char* name);
+  static void UpdateAllPrograms();
 
-	explicit Program(const char* name = "");
+  explicit Program(const char* name = "");
 
-	void Update();
-	void Bind();
-	void SetUniform(const char* name, int32_t value) const;
-	void SetUniform(const char* name, u32 value) const;
-	void SetUniform(const char* name, f32 value) const;
-	void SetUniform(const char* name, const glm::vec2& value) const;
-	void SetUniform(const char* name, const glm::vec3& value) const;
-	void SetUniform(const char* name, const glm::vec4& value) const;
-	void SetUniform(const char* name, const glm::mat2& value) const;
-	void SetUniform(const char* name, const glm::mat3& value) const;
-	void SetUniform(const char* name, const glm::mat4& value) const;
+  void Update();
+  void Bind();
+  void SetUniform(const char* name, int32_t value) const;
+  void SetUniform(const char* name, u32 value) const;
+  void SetUniform(const char* name, f32 value) const;
+  void SetUniform(const char* name, const glm::vec2& value) const;
+  void SetUniform(const char* name, const glm::vec3& value) const;
+  void SetUniform(const char* name, const glm::vec4& value) const;
+  void SetUniform(const char* name, const glm::mat2& value) const;
+  void SetUniform(const char* name, const glm::mat3& value) const;
+  void SetUniform(const char* name, const glm::mat4& value) const;
 
-private:
-	void  Build();
-	void  GetUniformInfos();
-	GLint GetLocation(const char* name) const;
+ private:
+  void Build();
+  void GetUniformInfos();
+  GLint GetLocation(const char* name) const;
 
-private:
-	using Shader  = std::pair<std::string, GLenum>;
-	using Shaders = std::vector<Shader>;
+ private:
+  using Shader = std::pair<std::string, GLenum>;
+  using Shaders = std::vector<Shader>;
 
-	using ShaderTime  = std::pair<std::string, std::filesystem::file_time_type>;
-	using ShaderTimes = std::vector<ShaderTime>;
+  using ShaderTime = std::pair<std::string, std::filesystem::file_time_type>;
+  using ShaderTimes = std::vector<ShaderTime>;
 
-	std::string m_name;
+  std::string m_name;
 
-	beard::string_hash_map<GLint> m_uniforms;
+  beard::string_hash_map<GLint> m_uniforms;
 
-	GLuint              m_id = 0;
-	std::vector<shader> m_shaders;
-	StringArray         m_defines;
+  GLuint m_id = 0;
+  std::vector<shader> m_shaders;
+  StringArray m_defines;
 };

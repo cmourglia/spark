@@ -7,50 +7,39 @@
 
 #include <entt/entt.hpp>
 
-struct NameComponent
-{
-	std::string name;
+struct NameComponent {
+  std::string name;
 };
 
-struct PositionComponent
-{
-	glm::vec3 position;
-	glm::quat orientation;
+struct PositionComponent {
+  glm::vec3 position;
+  glm::quat orientation;
 };
 
-struct VelocityComponent
-{
-	glm::vec3 linearVelocity;
-	glm::quat angularVelocity;
+struct VelocityComponent {
+  glm::vec3 linearVelocity;
+  glm::quat angularVelocity;
 };
 
-struct TransformComponent
-{
-	glm::mat4 transform;
+struct TransformComponent {
+  glm::mat4 transform;
 };
 
 class Entity;
 
-class World
-{
-public:
-	void Update();
+class World {
+ public:
+  void Update();
 
-	Entity CreateEntity();
-	void   RemoveEntity(Entity);
-	void   RemoveEntity(entt::entity);
+  Entity CreateEntity();
+  void RemoveEntity(Entity);
+  void RemoveEntity(entt::entity);
 
-	Entity GetActiveCamera() const;
+  Entity GetActiveCamera() const;
 
-	entt::registry& GetRegistry()
-	{
-		return m_Registry;
-	}
-	const entt::registry& GetRegistry() const
-	{
-		return m_Registry;
-	}
+  entt::registry& GetRegistry() { return m_Registry; }
+  const entt::registry& GetRegistry() const { return m_Registry; }
 
-private:
-	entt::registry m_Registry;
+ private:
+  entt::registry m_Registry;
 };
