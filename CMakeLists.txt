@@ -57,6 +57,14 @@ set(WORLD_INC
     src/include/Spark/World/Spark_AnimationSystem.h
 )
 
+set(UI_SRC
+    src/UI/Spark_UI.cpp
+)
+
+set(UI_INC
+    src/include/Spark/UI/Spark_UI.h
+)
+
 add_executable(${PROJECT_NAME}
     src/main.cpp
 
@@ -68,6 +76,8 @@ add_executable(${PROJECT_NAME}
     ${ASSETS_INC}
     ${WORLD_SRC}
     ${WORLD_INC}
+    ${UI_SRC}
+    ${UI_INC}
 )
 
 target_link_libraries(${PROJECT_NAME} PRIVATE glm glfw glad stb_image imgui assimp EnTT beard tinygltf)
