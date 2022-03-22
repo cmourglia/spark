@@ -6,9 +6,9 @@
 
 #include <Spark/Core/Spark_Utils.h>
 
-#include <Beard/Macros.h>
-#include <Beard/Timer.h>
-#include <Beard/Math.h>
+#include <beard/core/macros.h>
+#include <beard/misc/timer.h>
+#include <beard/math/math.h>
 
 #include <glad/glad.h>
 
@@ -22,8 +22,8 @@ extern std::vector<glm::vec3> PrecomputeDFG(u32 w, u32 h, u32 sampleCount); // 1
 void LoadEnvironment(const char* filename, Environment* env)
 {
 	FrameStats*  stats = FrameStats::Get();
-	Beard::Timer timer;
-	Beard::Timer procTimer;
+	beard::timer timer;
+	beard::timer procTimer;
 
 	if (!glIsTexture(env->iblDFG))
 	{
@@ -37,7 +37,7 @@ void LoadEnvironment(const char* filename, Environment* env)
 		glTextureParameteri(env->iblDFG, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 		glTextureParameteri(env->iblDFG, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 		glTextureParameteri(env->iblDFG, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-		FrameStats::Get()->ibl.precomputeDFG = timer.Tick();
+		FrameStats::Get()->ibl.precomputeDFG = timer.tick();
 	}
 
 	stbi_set_flip_vertically_on_load(true);
@@ -58,7 +58,7 @@ void LoadEnvironment(const char* filename, Environment* env)
 	glCreateTextures(GL_TEXTURE_2D, 1, &equirectangularTexture);
 
 	// glTextureStorage2D(equirectangularTexture, levels, GL_RGB32F, w, h);
-	glTextureStorage2D(equirectangularTexture, log2f(Beard::Min(w, h)), GL_RGB32F, w, h);
+	glTextureStorage2D(equirectangularTexture, log2f(beard::min(w, h)), GL_RGB32F, w, h);
 	glTextureSubImage2D(equirectangularTexture, 0, 0, 0, w, h, GL_RGB, GL_FLOAT, data);
 	glTextureParameteri(equirectangularTexture, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 	glTextureParameteri(equirectangularTexture, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
@@ -67,7 +67,7 @@ void LoadEnvironment(const char* filename, Environment* env)
 
 	stbi_image_free(data);
 
-	stats->ibl.loadTexture = timer.Tick();
+	stats->ibl.loadTexture = timer.tick();
 
 	// Cleanup old data
 	if (!glIsTexture(env->envMap))
@@ -92,7 +92,7 @@ void LoadEnvironment(const char* filename, Environment* env)
 
 	glGenerateTextureMipmap(env->envMap);
 
-	stats->ibl.cubemap = timer.Tick();
+	stats->ibl.cubemap = timer.tick();
 
 	if (!glIsTexture(env->radianceMap))
 	{
@@ -115,7 +115,7 @@ void LoadEnvironment(const char* filename, Environment* env)
 
 	for (u32 mip = 0; mip < mipLevels; ++mip, mipSize /= 2)
 	{
-		const f32 roughness = Beard::Max(0.05f, (f32)mip / (f32)(mipLevels - 1));
+		const f32 roughness = beard::max(0.05f, (f32)mip / (f32)(mipLevels - 1));
 
 		glBindImageTexture(1, env->radianceMap, mip, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA32F);
 		prefilterEnvmapProgram->SetUniform("u_roughness", roughness);
@@ -126,7 +126,7 @@ void LoadEnvironment(const char* filename, Environment* env)
 
 	glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
 
-	stats->ibl.prefilter = timer.Tick();
+	stats->ibl.prefilter = timer.tick();
 
 	if (!glIsTexture(env->irradianceMap))
 	{
@@ -150,6 +150,6 @@ void LoadEnvironment(const char* filename, Environment* env)
 
 	glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
 
-	stats->ibl.irradiance = timer.Tick();
-	stats->ibl.total      = procTimer.Tick();
+	stats->ibl.irradiance = timer.tick();
+	stats->ibl.total      = procTimer.tick();
 }

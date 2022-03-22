@@ -1,6 +1,6 @@
 #include <Spark/Renderer/Spark_RenderPrimitives.h>
 
-#include <Beard/Macros.h>
+#include <beard/core/macros.h>
 
 #include <glad/glad.h>
 

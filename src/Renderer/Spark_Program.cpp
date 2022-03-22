@@ -1,13 +1,13 @@
 #include <Spark/Renderer/Spark_Program.h>
 
-#include <Beard/IO.h>
-#include <Beard/HashMap.h>
+#include <beard/io/io.h>
+#include <beard/containers/hash_map.h>
 
 #include <iostream>
 #include <string>
 #include <regex>
 
-Beard::StringHashMap<Program> g_programsByName;
+beard::string_hash_map<Program> g_programsByName;
 
 inline std::string GetShaderFullPath(const char* filename)
 {
@@ -70,7 +70,7 @@ inline std::string ParseShader(const char* input, int level = 0)
 
 			auto filename = line.substr(i + 1, j - i - 1);
 
-			auto src = Beard::IO::ReadWholeFile(GetShaderFullPath(filename.c_str()).c_str());
+			auto src = beard::io::read_whole_file(GetShaderFullPath(filename.c_str()).c_str());
 			content += ParseShader(src.c_str(), level + 1);
 			content += "\n"; // Just in case
 		}
@@ -85,7 +85,7 @@ inline std::string ParseShader(const char* input, int level = 0)
 
 inline u32 CompileShader(const char* filename, GLenum shaderType, const std::vector<const char*>& defines)
 {
-	std::string src = Beard::IO::ReadWholeFile(filename);
+	std::string src = beard::io::read_whole_file(filename);
 	if (src.empty())
 	{
 		return 0;
@@ -125,7 +125,7 @@ inline u32 CompileShader(const char* filename, GLenum shaderType, const std::vec
 
 Program* Program::MakeRender(const char* name, const char* vsfile, const char* fsfile, const StringArray& defines)
 {
-	if (!g_programsByName.Contains(name))
+	if (!g_programsByName.contains(name))
 	{
 		Program program(name);
 
@@ -150,7 +150,7 @@ Program* Program::MakeRender(const char* name, const char* vsfile, const char* f
 
 Program* Program::MakeCompute(const char* name, const char* csfile, const StringArray& defines)
 {
-	if (!g_programsByName.Contains(name))
+	if (!g_programsByName.contains(name))
 	{
 		Program program(name);
 
@@ -168,7 +168,7 @@ Program* Program::MakeCompute(const char* name, const char* csfile, const String
 
 Program* Program::GetProgramByName(const char* name)
 {
-	if (g_programsByName.Contains(name))
+	if (g_programsByName.contains(name))
 	{
 		return &g_programsByName[name];
 	}
@@ -322,7 +322,7 @@ void Program::Build()
 
 void Program::GetUniformInfos()
 {
-	m_uniforms.Clear();
+	m_uniforms.clear();
 
 	GLint uniformCount = 0;
 	glGetProgramiv(m_id, GL_ACTIVE_UNIFORMS, &uniformCount);
@@ -343,7 +343,7 @@ void Program::GetUniformInfos()
 
 			GLint location = glGetUniformLocation(m_id, uniformName);
 
-			m_uniforms.Add(std::string(uniformName, length), location);
+			m_uniforms.add(std::string(uniformName, length), location);
 		}
 
 		delete[] uniformName;
@@ -352,6 +352,6 @@ void Program::GetUniformInfos()
 
 GLint Program::GetLocation(const char* name) const
 {
-	auto it = m_uniforms.Find(name);
+	auto it = m_uniforms.find(name);
 	return (it == m_uniforms.end()) ? -1 : it->second;
 }

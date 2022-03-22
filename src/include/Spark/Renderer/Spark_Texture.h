@@ -1,7 +1,6 @@
 #pragma once
 
-#include <Beard/Macros.h>
-#include <Beard/Array.h>
+#include <beard/core/macros.h>
 
 #include <string>
 

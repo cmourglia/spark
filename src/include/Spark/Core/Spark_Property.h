@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Beard/Array.h>
+#include <beard/containers/array.h>
 
 #include <functional>
 
@@ -9,7 +9,7 @@ class Property
 {
 public:
 	using Callback  = std::function<void(const T&)>;
-	using Callbacks = Beard::Array<Callback>;
+	using Callbacks = beard::array<Callback>;
 
 	Property() = default;
 	Property(T data) // NOLINT The implicit constructor is intentional here

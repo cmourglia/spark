@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Beard/Macros.h>
+#include <beard/core/macros.h>
 
 struct FrameStats
 {

@@ -2,17 +2,17 @@
 
 #include <Spark/Core/Spark_Utils.h>
 
-#include <Beard/HashMap.h>
-#include <Beard/Math.h>
+#include <beard/containers/hash_map.h>
+#include <beard/math/math.h>
 
 #include <stb_image.h>
 #include <glad/glad.h>
 
-static Beard::StringHashMap<u32> g_Textures;
+static beard::string_hash_map<u32> g_Textures;
 
 u32 LoadTexture(const std::string& filename)
 {
-	if (auto it = g_Textures.Find(filename); it != g_Textures.end())
+	if (auto it = g_Textures.find(filename); it != g_Textures.end())
 	{
 		return it->second;
 	}
@@ -37,7 +37,7 @@ u32 LoadTexture(i32 width, i32 height, i32 components, const u8* data)
 	GLuint texture;
 	glCreateTextures(GL_TEXTURE_2D, 1, &texture);
 
-	const i32 levels = log2f(Beard::Min(width, height));
+	const i32 levels = log2f(beard::min(width, height));
 
 	GLenum format, internalFormat;
 	switch (components)

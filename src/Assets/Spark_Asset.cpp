@@ -2,7 +2,7 @@
 
 #include <Spark/Renderer/Spark_FrameStats.h>
 
-#include <Beard/Timer.h>
+#include <beard/misc/timer.h>
 
 #include <string>
 
@@ -11,23 +11,23 @@ extern bool LoadGLTFScene(const char* filename, World* world);
 
 bool LoadScene(const char* filename, World* world)
 {
-	Beard::Timer timer;
+	beard::timer timer;
 
 	bool result = false;
 
 	auto ext = std::string(filename).substr(std::string(filename).find_last_of(".") + 1);
 	if (ext == "gltf" || ext == "glb")
 	{
-		timer.Restart();
+		timer.restart();
 		result = LoadGLTFScene(filename, world);
 	}
 	else
 	{
-		timer.Restart();
+		timer.restart();
 		result = LoadAssimpScene(filename, world);
 	}
 
-	FrameStats::Get()->loadScene = timer.Tick();
+	FrameStats::Get()->loadScene = timer.tick();
 
 	return result;
 }

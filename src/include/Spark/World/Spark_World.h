@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Beard/Macros.h>
+#include <beard/core/macros.h>
 
 #include <glm/glm.hpp>
 #include <glm/gtc/quaternion.hpp>

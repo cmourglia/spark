@@ -1,4 +1,4 @@
-#include <Beard/Macros.h>
+#include <beard/core/macros.h>
 
 #include <Spark/Core/Spark_Utils.h>
 
@@ -69,7 +69,7 @@ struct OrbitCamera
 
 	glm::mat4 GetView()
 	{
-		using Beard::Math::DegToRad;
+		using beard::math::DegToRad;
 		const f32 x = distance * sinf(theta * DegToRad) * sinf(phi * DegToRad);
 		const f32 y = distance * cosf(theta * DegToRad);
 		const f32 z = distance * sinf(theta * DegToRad) * cosf(phi * DegToRad);
@@ -83,7 +83,7 @@ struct OrbitCamera
 void SetupUI(GLFWwindow* window);
 void RenderUI(const std::vector<Model>& models);
 
-global_variable Beard::HashMap<u32, Program> g_Programs;
+global_variable beard::hash_map<u32, Program> g_Programs;
 
 global_variable OrbitCamera g_Camera;
 //  global_variable f32    g_lastScroll = 0.0f;
@@ -557,7 +557,7 @@ static void MouseMoveCallback(GLFWwindow* window, f64 x, f64 y)
 		const f64 dy = 0.1f * (y - lastY);
 
 		g_Camera.phi += dx;
-		g_Camera.theta = Beard::Clamp(g_Camera.theta + (f32)dy, 10.0f, 170.0f);
+		g_Camera.theta = beard::clamp(g_Camera.theta + (f32)dy, 10.0f, 170.0f);
 
 		lastX = x;
 		lastY = y;
@@ -596,7 +596,7 @@ static void WheelCallback(GLFWwindow* window, f64 x, f64 y)
 
 			const f32 distance = g_Camera.distance - (f32)y * multiplier;
 
-			g_Camera.distance = Beard::Clamp(distance, minDistance, maxDistance);
+			g_Camera.distance = beard::clamp(distance, minDistance, maxDistance);
 		}
 	}
 }

@@ -9,9 +9,9 @@
 
 #include <Spark/Core/Spark_Utils.h>
 
-#include <Beard/Array.h>
-#include <Beard/Math.h>
-#include <Beard/Timer.h>
+#include <beard/containers/array.h>
+#include <beard/math/math.h>
+#include <beard/misc/timer.h>
 
 #include <entt/entt.hpp>
 
@@ -129,8 +129,8 @@ void LoadMesh(u32 meshIndex, const gltf::Model& input, Entity entity)
 	i32         indexStride     = indexType == IndexType::Unsigned16 ? 2 : 4;
 	i32         indexLength     = indexCount * indexStride;
 
-	mesh.indices.Resize(indexLength);
-	memcpy(mesh.indices.Data(), input.buffers[indexBufferView.buffer].data.data() + indexOffset, indexLength);
+		mesh.indices.resize(indexLength);
+		memcpy(mesh.indices.data(), input.buffers[indexBufferView.buffer].data.data() + indexOffset, indexLength);
 
 	for (auto attribute : primitive.attributes)
 	{
@@ -144,18 +144,18 @@ void LoadMesh(u32 meshIndex, const gltf::Model& input, Entity entity)
 
 		if (attribute.first == "POSITION")
 		{
-			mesh.positions.Resize(attributeCount);
-			memcpy(mesh.positions.Data(), attributeBuffer.data.data() + attributeOffset, mesh.positions.DataSize());
+				mesh.positions.resize(attributeCount);
+				memcpy(mesh.positions.data(), attributeBuffer.data.data() + attributeOffset, mesh.positions.data_size());
 		}
 		else if (attribute.first == "NORMAL")
 		{
-			mesh.normals.Resize(attributeCount);
-			memcpy(mesh.normals.Data(), attributeBuffer.data.data() + attributeOffset, mesh.normals.DataSize());
+				mesh.normals.resize(attributeCount);
+				memcpy(mesh.normals.data(), attributeBuffer.data.data() + attributeOffset, mesh.normals.data_size());
 		}
 		else if (attribute.first == "TEXCOORD_0")
 		{
-			mesh.texcoords.Resize(attributeCount);
-			memcpy(mesh.texcoords.Data(), attributeBuffer.data.data() + attributeOffset, mesh.texcoords.DataSize());
+				mesh.texcoords.resize(attributeCount);
+				memcpy(mesh.texcoords.data(), attributeBuffer.data.data() + attributeOffset, mesh.texcoords.data_size());
 		}
 		else if (attribute.first == "TEXCOORD_1")
 		{
@@ -173,7 +173,7 @@ void LoadMesh(u32 meshIndex, const gltf::Model& input, Entity entity)
 
 	mesh.indexType   = indexType;
 	mesh.indexCount  = indexCount;
-	mesh.vertexCount = mesh.positions.ElementCount();
+		mesh.vertexCount = mesh.positions.element_count();
 
 	auto renderMesh = std::make_shared<RenderMesh>(std::move(mesh));
 

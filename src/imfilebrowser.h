@@ -26,7 +26,7 @@ SOFTWARE.
 
 #pragma once
 
-#include <Beard/Array.h>
+#include <beard/containers/array.h>
 
 #include <array>
 #include <cstring>
@@ -104,13 +104,13 @@ public:
 	// returns all selected filenames.
 	// when ImGuiFileBrowserFlags_MultipleSelection is enabled, use this
 	// instead of GetSelected
-	Beard::Array<std::filesystem::path> GetMultiSelected() const;
+	beard::array<std::filesystem::path> GetMultiSelected() const;
 
 	// set selected filename to empty
 	void ClearSelected();
 
 	// set file type filters. eg. { ".h", ".cpp", ".hpp", ".cc", ".inl" }
-	void SetTypeFilters(const Beard::Array<const char*>& typeFilters);
+	void SetTypeFilters(const beard::array<const char*>& typeFilters);
 
 private:
 	class ScopeGuard
@@ -156,7 +156,7 @@ private:
 
 	std::string statusStr_;
 
-	Beard::Array<const char*> typeFilters_;
+	beard::array<const char*> typeFilters_;
 	int                       typeFilterIndex_;
 
 	std::filesystem::path           pwd_;
@@ -169,7 +169,7 @@ private:
 		std::string           showName;
 		std::filesystem::path extension;
 	};
-	Beard::Array<FileRecord> fileRecords_;
+	beard::array<FileRecord> fileRecords_;
 
 	// IMPROVE: truncate when selectedFilename_.length() > inputNameBuf_.size() - 1
 	static constexpr size_t                                INPUT_NAME_BUF_SIZE = 512;
@@ -580,11 +580,11 @@ inline std::filesystem::path ImGui::FileBrowser::GetSelected() const
 	return pwd_ / *selectedFilenames_.begin();
 }
 
-inline Beard::Array<std::filesystem::path> ImGui::FileBrowser::GetMultiSelected() const
+inline beard::array<std::filesystem::path> ImGui::FileBrowser::GetMultiSelected() const
 {
 	if (selectedFilenames_.empty())
 		return {pwd_};
-	Beard::Array<std::filesystem::path> ret;
+	beard::array<std::filesystem::path> ret;
 	ret.Reserve(selectedFilenames_.size());
 	for (auto& s : selectedFilenames_)
 		ret.Add(pwd_ / s);
@@ -598,7 +598,7 @@ inline void ImGui::FileBrowser::ClearSelected()
 	ok_                 = false;
 }
 
-inline void ImGui::FileBrowser::SetTypeFilters(const Beard::Array<const char*>& typeFilters)
+inline void ImGui::FileBrowser::SetTypeFilters(const beard::array<const char*>& typeFilters)
 {
 	typeFilters_     = typeFilters;
 	typeFilterIndex_ = 0;

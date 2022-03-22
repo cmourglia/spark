@@ -8,8 +8,8 @@
 
 #include <Spark/Core/Spark_Utils.h>
 
-#include <Beard/Timer.h>
-#include <Beard/Math.h>
+#include <beard/misc/timer.h>
+#include <beard/math/math.h>
 
 #include <entt/entt.hpp>
 
@@ -83,7 +83,7 @@ void Renderer::Resize(const glm::vec2& newSize)
 		m_bloomSize.x += m_bloomComputeWorkGroupSize - ((i32)m_bloomSize.x % m_bloomComputeWorkGroupSize);
 		m_bloomSize.y += m_bloomComputeWorkGroupSize - ((i32)m_bloomSize.y % m_bloomComputeWorkGroupSize);
 
-		i32 mipCount  = log2(Beard::Min(m_bloomSize.x, m_bloomSize.y));
+		i32 mipCount  = log2(beard::min(m_bloomSize.x, m_bloomSize.y));
 		m_bloomPasses = mipCount - 2;
 		glCreateTextures(GL_TEXTURE_2D, 3, bloomTextures);
 		glTextureStorage2D(bloomTextures[0], mipCount, GL_RGBA32F, m_bloomSize.x, m_bloomSize.y);
@@ -112,11 +112,11 @@ void Renderer::Resize(const glm::vec2& newSize)
 void Renderer::Render(const World& world)
 {
 	FrameStats*  stats = FrameStats::Get();
-	Beard::Timer timer;
-	Beard::Timer frameTimer;
+	beard::timer timer;
+	beard::timer frameTimer;
 
 	Program::UpdateAllPrograms();
-	stats->frame.updatePrograms = timer.Tick();
+	stats->frame.updatePrograms = timer.tick();
 
 	ShadowPass(world);
 	LightPass(world);
@@ -124,19 +124,19 @@ void Renderer::Render(const World& world)
 	Bloom();
 	Compose();
 
-	stats->renderTotal = frameTimer.Tick();
+	stats->renderTotal = frameTimer.tick();
 }
 
 void Renderer::ShadowPass(const World& world)
 {
 	FrameStats*  stats = FrameStats::Get();
-	Beard::Timer timer;
+	beard::timer timer;
 }
 
 void Renderer::LightPass(const World& world)
 {
 	FrameStats*  stats = FrameStats::Get();
-	Beard::Timer timer;
+	beard::timer timer;
 
 	auto  camera          = world.GetActiveCamera();
 	auto& cameraComponent = camera.GetComponent<CameraComponent>();
@@ -198,13 +198,13 @@ void Renderer::LightPass(const World& world)
 		RenderCube();
 	}
 
-	stats->frame.background = timer.Tick();
+	stats->frame.background = timer.tick();
 }
 
 void Renderer::ResolveMSAA()
 {
 	FrameStats*  stats = FrameStats::Get();
-	Beard::Timer timer;
+	beard::timer timer;
 
 	glBlitNamedFramebuffer(m_msaaFB,
 	                       m_resolveFB,
@@ -221,7 +221,7 @@ void Renderer::ResolveMSAA()
 
 	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
 
-	stats->frame.resolveMSAA = timer.Tick();
+	stats->frame.resolveMSAA = timer.tick();
 }
 
 void Renderer::Bloom()
@@ -232,9 +232,9 @@ void Renderer::Bloom()
 	}
 
 	FrameStats*  stats = FrameStats::Get();
-	Beard::Timer timer;
+	beard::timer timer;
 
-	Beard::Timer bloomTimer;
+	beard::timer bloomTimer;
 
 	m_bloomProgram->Bind();
 
@@ -253,7 +253,7 @@ void Renderer::Bloom()
 	m_bloomProgram->SetUniform("u_params", glm::vec4(bloom.threshold, bloom.threshold - bloom.knee, bloom.knee * 2.0f, 0.25f / bloom.knee));
 	glDispatchCompute(workGroupsX, workGroupsY, 1);
 	glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
-	stats->frame.bloomPrefilter = timer.Tick();
+	stats->frame.bloomPrefilter = timer.tick();
 
 	// Downsample
 	m_bloomProgram->SetUniform("u_mode", 1);
@@ -281,7 +281,7 @@ void Renderer::Bloom()
 		glDispatchCompute(workGroupsX, workGroupsY, 1);
 		glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
 	}
-	stats->frame.bloomDownsample = timer.Tick();
+	stats->frame.bloomDownsample = timer.tick();
 
 	lod -= 1.0f;
 
@@ -299,7 +299,7 @@ void Renderer::Bloom()
 	glBindTextureUnit(2, resolveTexture);
 	glDispatchCompute(workGroupsX, workGroupsY, 1);
 	glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
-	stats->frame.bloomUpsampleFirst = timer.Tick();
+	stats->frame.bloomUpsampleFirst = timer.tick();
 
 	// Upsample
 	m_bloomProgram->SetUniform("u_mode", 3);
@@ -320,14 +320,14 @@ void Renderer::Bloom()
 		glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
 	}
 
-	stats->frame.bloomUpsample = timer.Tick();
-	stats->frame.bloomTotal    = bloomTimer.Tick();
+	stats->frame.bloomUpsample = timer.tick();
+	stats->frame.bloomTotal    = bloomTimer.tick();
 }
 
 void Renderer::Compose()
 {
 	FrameStats*  stats = FrameStats::Get();
-	Beard::Timer timer;
+	beard::timer timer;
 
 	// Final render
 	m_outputProgram->Bind();
@@ -344,7 +344,7 @@ void Renderer::Compose()
 
 	glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
 
-	stats->frame.finalCompositing = timer.Tick();
+	stats->frame.finalCompositing = timer.tick();
 }
 
 void Model::Draw(RenderContext* context) const

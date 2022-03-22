@@ -1,7 +1,7 @@
 #pragma once
 
-#include <Beard/Macros.h>
-#include <Beard/HashMap.h>
+#include <beard/core/macros.h>
+#include <beard/containers/hash_map.h>
 
 #include <glad/glad.h>
 
@@ -58,7 +58,7 @@ private:
 
 	std::string m_name;
 
-	Beard::StringHashMap<GLint> m_uniforms;
+	beard::string_hash_map<GLint> m_uniforms;
 
 	GLuint              m_id = 0;
 	std::vector<shader> m_shaders;

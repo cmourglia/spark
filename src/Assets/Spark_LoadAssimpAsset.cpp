@@ -10,9 +10,9 @@
 
 #include <Spark/Core/Spark_Utils.h>
 
-#include <Beard/Timer.h>
-#include <Beard/Array.h>
-#include <Beard/Math.h>
+#include <beard/misc/timer.h>
+#include <beard/containers/array.h>
+#include <beard/math/math.h>
 
 #include <entt/entt.hpp>
 
@@ -113,11 +113,11 @@ inline std::shared_ptr<Material> ProcessMaterial(aiMaterial* inputMaterial, cons
 
 std::shared_ptr<RenderMesh> ProcessMesh(aiMesh* inputMesh, const aiScene* scene)
 {
-	Mesh mesh = {};
+	mesh->positions.resize(inputMesh->mNumVertices);
+	mesh->normals.resize(inputMesh->mNumVertices);
+	mesh->texcoords.reserve(inputMesh->mNumVertices);
 
-	mesh.positions.Resize(inputMesh->mNumVertices);
-	mesh.normals.Resize(inputMesh->mNumVertices);
-	mesh.texcoords.Reserve(inputMesh->mNumVertices);
+	mesh->indices.resize(inputMesh->mNumFaces * 3 * sizeof(u32));
 
 	mesh.indices.Resize(inputMesh->mNumFaces * 3 * sizeof(u32));
 
@@ -129,19 +129,19 @@ std::shared_ptr<RenderMesh> ProcessMesh(aiMesh* inputMesh, const aiScene* scene)
 	const aiVector3D* inNormals   = inputMesh->mNormals;
 	const aiVector3D* inTexcoords = inputMesh->mTextureCoords[0];
 
-	memcpy(mesh.positions.Data(), inVertices, mesh.positions.DataSize());
-	memcpy(mesh.normals.Data(), inNormals, mesh.normals.DataSize());
+	memcpy(mesh->positions.data(), inVertices, mesh->positions.data_size());
+	memcpy(mesh->normals.data(), inNormals, mesh->normals.data_size());
 
 	if (inTexcoords != nullptr)
 	{
 		for (u32 i = 0; i < inputMesh->mNumVertices; ++i)
 		{
 			aiVector3D texcoord = inTexcoords[i];
-			mesh.texcoords.Add({texcoord.x, texcoord.y});
+			mesh->texcoords.add({texcoord.x, texcoord.y});
 		}
 	}
 
-	u32* indices = (u32*)mesh.indices.Data();
+	u32* indices = (u32*)mesh->indices.data();
 
 	const aiFace* inFaces = inputMesh->mFaces;
 	for (u32 i = 0; i < inputMesh->mNumFaces; ++i)

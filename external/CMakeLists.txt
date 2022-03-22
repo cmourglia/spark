@@ -1,6 +1,8 @@
 add_library(glad STATIC glad/src/glad.c)
 target_include_directories(glad PUBLIC glad/include)
 
+set(BEARD_ENABLE_GLM ON CACHE BOOL "" FORCE)
+set(BEARD_ENABLE_STB ON CACHE BOOL "" FORCE)
 add_subdirectory(BeardLibrary)
 
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)

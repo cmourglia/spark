@@ -1,7 +1,7 @@
 #pragma once
 
-#include <Beard/Macros.h>
-#include <Beard/Array.h>
+#include <beard/core/macros.h>
+#include <beard/containers/array.h>
 
 #include <glm/glm.hpp>
 
@@ -15,13 +15,13 @@ enum class IndexType
 // but this is the easiest to update and maintain for now.
 struct Mesh
 {
-	Beard::Array<glm::vec3> positions;
-	Beard::Array<glm::vec3> normals;
-	Beard::Array<glm::vec2> texcoords;
-	Beard::Array<glm::vec4> weights;
-	Beard::Array<glm::vec4> bones;
+	beard::array<glm::vec3> positions;
+	beard::array<glm::vec3> normals;
+	beard::array<glm::vec2> texcoords;
+	beard::array<glm::vec4> weights;
+	beard::array<glm::vec4> bones;
 
-	Beard::Array<u8> indices;
+	beard::array<u8> indices;
 
 	IndexType indexType;
 	u32       indexCount;

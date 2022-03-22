@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Beard/Macros.h>
+#include <beard/core/macros.h>
 
 #include <glm/vec2.hpp>
 #include <chrono>

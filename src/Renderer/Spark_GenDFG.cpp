@@ -1,8 +1,8 @@
 #include <Spark/Core/Spark_Utils.h>
 
-#include <Beard/Macros.h>
-#include <Beard/Array.h>
-#include <Beard/Math.h>
+#include <beard/core/macros.h>
+#include <beard/containers/array.h>
+#include <beard/math/math.h>
 
 #include <stdint.h>
 #include <stdlib.h>
@@ -25,7 +25,7 @@ f32 Vis(f32 a, f32 NoV, f32 NoL)
 
 inline glm::vec3 HemisphereImportanceSampleDGGX(const glm::vec2& u, const f32 a)
 {
-	const f32 phi       = Beard::Math::Tau * u.x;
+	const f32 phi       = beard::math::Tau * u.x;
 	const f32 cosTheta2 = (1.0f - u.y) / (1.0f + (a + 1.0f) * ((a - 1.0f) * u.y));
 	const f32 cosTheta  = sqrtf(cosTheta2);
 	const f32 sinTheta  = sqrtf(1.0f - cosTheta2);
@@ -44,9 +44,10 @@ glm::vec2 DFV(f32 NoV, f32 roughness, u32 sampleCount)
 		const glm::vec2 u   = Hammersley(i, invSampleCount);
 		const glm::vec3 H   = HemisphereImportanceSampleDGGX(u, roughness);
 		const glm::vec3 L   = 2.0f * glm::dot(V, H) * H - V;
-		const f32       VoH = Beard::Saturate(glm::dot(V, H));
-		const f32       NoL = Beard::Saturate(L.z);
-		const f32       NoH = Beard::Saturate(H.z);
+		const f32       VoH = beard::saturate(glm::dot(V, H));
+		const f32       NoL = beard::saturate(L.z);
+		const f32       NoH = beard::saturate(H.z);
+
 		if (NoL > 0)
 		{
 			/*
@@ -87,11 +88,11 @@ std::vector<glm::vec3> PrecomputeDFG(u32 w, u32 h, u32 sampleCount) // 128, 128,
 
 	for (u32 y = 0; y < h; ++y)
 	{
-		const f32 roughness       = Beard::Saturate((h - y + 0.5f) / h);
+		const f32 roughness       = beard::saturate((h - y + 0.5f) / h);
 		const f32 linearRoughness = roughness * roughness;
 		for (u32 x = 0; x < w; ++x)
 		{
-			const f32 NoV = Beard::Saturate((x + 0.5f) / w);
+			const f32 NoV = beard::saturate((x + 0.5f) / w);
 			// const f32 m2  = m * m;
 
 			// const f32 vx = sqrtf(1.0f - NoV * NoV);

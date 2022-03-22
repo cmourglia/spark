@@ -5,7 +5,7 @@
 template <typename T>
 void BindBuffer(const Beard::Array<T>& buffer, i32 vao, i32 vbo, i32 bindingPoint, i32 offset, i32 size, GLenum dataType)
 {
-	if (!buffer.IsEmpty())
+	if (!buffer.is_empty())
 	{
 		glNamedBufferSubData(vbo, offset, buffer.DataSize(), buffer.Data());
 		glEnableVertexArrayAttrib(vao, bindingPoint);
@@ -19,17 +19,17 @@ RenderMesh::RenderMesh(Mesh mesh)
     : m_Mesh(std::move(mesh))
 {
 	i32 indexOffset    = 0;
-	i32 indexSize      = m_Mesh.indices.DataSize();
+	i32 indexSize      = mesh.indices.data_size();
 	i32 positionOffset = indexOffset + indexSize;
-	i32 positionSize   = m_Mesh.positions.DataSize();
+	i32 positionSize   = mesh.positions.data_size();
 	i32 normalOffset   = positionOffset + positionSize;
-	i32 normalSize     = m_Mesh.normals.DataSize();
+	i32 normalSize     = mesh.normals.data_size();
 	i32 texcoordOffset = normalOffset + normalSize;
-	i32 texcoordSize   = m_Mesh.texcoords.DataSize();
+	i32 texcoordSize   = mesh.texcoords.data_size();
 	i32 weightsOffset  = texcoordOffset + texcoordSize;
-	i32 weightsSize    = m_Mesh.weights.DataSize();
+	i32 weightsSize    = mesh.weights.data_size();
 	i32 bonesOffset    = weightsOffset + weightsSize;
-	i32 bonesSize      = m_Mesh.bones.DataSize();
+	i32 bonesSize      = mesh.bones.data_size();
 
 	i32 bufferSize = 0;
 	bufferSize += indexSize;
@@ -50,7 +50,7 @@ RenderMesh::RenderMesh(Mesh mesh)
 	glNamedBufferStorage(m_Buffer, bufferSize, nullptr, accessFlags | GL_DYNAMIC_STORAGE_BIT);
 
 	glVertexArrayElementBuffer(m_VAO, m_Buffer);
-	glNamedBufferSubData(m_Buffer, indexOffset, indexSize, m_Mesh.indices.Data());
+	glNamedBufferSubData(m_Buffer, indexOffset, indexSize, mesh.indices.data());
 
 	// Upload data
 	BindBuffer(m_Mesh.positions, m_VAO, m_Buffer, 0, positionOffset, 3, GL_FLOAT);
