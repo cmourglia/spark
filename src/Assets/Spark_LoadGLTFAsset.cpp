@@ -29,152 +29,165 @@
 
 namespace gltf = tinygltf;
 
-void LoadMesh(u32 meshIndex, const gltf::Model& input, Entity entity) {
+beard::array<Entity> LoadMesh(u32 meshIndex,
+                              const gltf::Model& input,
+                              World* world) {
   const auto& inputMesh = input.meshes[meshIndex];
 
-  if (!inputMesh.name.empty()) {
-    entity.AddComponent<NameComponent>(inputMesh.name);
-  }
+  beard::array<Entity> entities;
 
-  if (inputMesh.primitives.size() > 1) {
-    // TODO
-    ASSERT_UNREACHABLE();
+  if (!inputMesh.name.empty()) {
+    // entity.AddComponent<NameComponent>(inputMesh.name);
   }
 
   ASSERT(!inputMesh.primitives.empty(), "No primitive ???");
+  for (u32 i = 0; i < inputMesh.primitives.size(); ++i) {
+    auto entity = world->CreateEntity();
 
-  if (inputMesh.primitives.empty()) {
-    return;
-  }
+    const auto& primitive = inputMesh.primitives[i];
 
-  auto& renderable = entity.AddComponent<Renderable>();
+    auto& mesh = entity.AddComponent<MeshComponent>();
+    auto& renderable = entity.AddComponent<Renderable>();
 
-  const auto& primitive = inputMesh.primitives[0];
+    // Load primitive's material
+    const auto& inputMaterial = input.materials[primitive.material];
+    const auto& inputPBRMaterial = inputMaterial.pbrMetallicRoughness;
+    auto material = std::make_shared<Material>(
+        inputMaterial.name.c_str(), "pbr.vert.glsl", "pbr.frag.glsl");
 
-  // Load primitive's material
-  const auto& inputMaterial = input.materials[primitive.material];
-  const auto& inputPBRMaterial = inputMaterial.pbrMetallicRoughness;
-  auto material = std::make_shared<Material>(inputMaterial.name.c_str(),
-                                             "pbr.vert.glsl", "pbr.frag.glsl");
+    material->albedo = glm::make_vec3(inputPBRMaterial.baseColorFactor.data());
+    material->roughness = inputPBRMaterial.roughnessFactor;
+    material->metallic = inputPBRMaterial.metallicFactor;
+    material->emissive = glm::make_vec3(inputMaterial.emissiveFactor.data());
+    material->emissiveFactor = 1.0f;
+    material->hasEmissive = true;
 
-  material->albedo = glm::make_vec3(inputPBRMaterial.baseColorFactor.data());
-  material->roughness = inputPBRMaterial.roughnessFactor;
-  material->metallic = inputPBRMaterial.metallicFactor;
-  material->emissive = glm::make_vec3(inputMaterial.emissiveFactor.data());
-  material->emissiveFactor = 1.0f;
-  material->hasEmissive = true;
+    auto GetTexture = [&input](i32 index) -> u32 {
+      if (index == -1) {
+        return 0;
+      }
 
-  auto GetTexture = [&input](i32 index) -> u32 {
-    if (index == -1) {
-      return 0;
+      const auto& texture = input.textures[index];
+      const auto& image = input.images[texture.source];
+      const auto& sampler = input.samplers[texture.sampler];
+      ASSERT(!image.image.empty(), "Empty image -> TODO");
+
+      const u8* data = nullptr;
+      if (false)  //(image.bufferView != -1)
+      {
+        const auto& imageView = input.bufferViews[image.bufferView];
+        const auto& imageBuffer = input.buffers[imageView.buffer];
+        // data                    = input.buffers[]
+      } else {
+        data = image.image.data();
+      }
+
+      u32 result = LoadTexture(image.width, image.height, image.component,
+                               image.image.data());
+      return result;
+    };
+
+    if (u32 texture = GetTexture(inputPBRMaterial.baseColorTexture.index);
+        texture != 0) {
+      material->albedoTexture = texture;
+      material->hasAlbedoTexture = true;
     }
 
-    const auto& texture = input.textures[index];
-    const auto& image = input.images[texture.source];
-    const auto& sampler = input.samplers[texture.sampler];
-    ASSERT(!image.image.empty(), "Empty image -> TODO");
-    ASSERT(image.bufferView == -1, "Has a buffer -> TODO");
-
-    u32 result = LoadTexture(image.width, image.height, image.component,
-                             image.image.data());
-    return result;
-  };
-
-  if (u32 texture = GetTexture(inputPBRMaterial.baseColorTexture.index);
-      texture != 0) {
-    material->albedoTexture = texture;
-    material->hasAlbedoTexture = true;
-  }
-
-  if (u32 texture = GetTexture(inputPBRMaterial.metallicRoughnessTexture.index);
-      texture != 0) {
-    material->metallicRoughnessTexture = texture;
-    material->hasMetallicRoughnessTexture = true;
-  }
-
-  if (u32 texture = GetTexture(inputMaterial.emissiveTexture.index);
-      texture != 0) {
-    material->emissiveTexture = texture;
-    material->hasEmissiveTexture = true;
-  }
-
-  if (u32 texture = GetTexture(inputMaterial.normalTexture.index);
-      texture != 0) {
-    material->normalMap = texture;
-    material->hasNormalMap = true;
-  }
-
-  if (u32 texture = GetTexture(inputMaterial.occlusionTexture.index);
-      texture != 0) {
-    material->ambientOcclusionMap = texture;
-    material->hasAmbientOcclusionMap = true;
-  }
-
-  // TODO: Alpha mode
-
-  // Load primitive's geometry
-  Mesh mesh = {};
-
-  // Index infos
-  const auto& indexAccessor = input.accessors[primitive.indices];
-  const auto& indexBufferView = input.bufferViews[indexAccessor.bufferView];
-  usize indexOffset = indexAccessor.byteOffset + indexBufferView.byteOffset;
-  usize indexCount = indexAccessor.count;
-  IndexType indexType =
-      indexAccessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT
-          ? IndexType::Unsigned16
-          : IndexType::Unsigned32;
-  i32 indexStride = indexType == IndexType::Unsigned16 ? 2 : 4;
-  i32 indexLength = indexCount * indexStride;
-
-  mesh.indices.resize(indexLength);
-  memcpy(mesh.indices.data(),
-         input.buffers[indexBufferView.buffer].data.data() + indexOffset,
-         indexLength);
-
-  for (auto attribute : primitive.attributes) {
-    const auto& attributeAccessor = input.accessors[attribute.second];
-    const auto& attributeBufferView =
-        input.bufferViews[attributeAccessor.bufferView];
-    const auto& attributeBuffer = input.buffers[attributeBufferView.buffer];
-    usize attributeCount = attributeAccessor.count;
-    usize attributeOffset =
-        attributeAccessor.byteOffset + attributeBufferView.byteOffset;
-    usize attributeLength = attributeBufferView.byteLength -
-                            attributeAccessor.byteOffset;  // Is this true ?
-    usize attributeStride = attributeBufferView.byteStride;
-
-    if (attribute.first == "POSITION") {
-      mesh.positions.resize(attributeCount);
-      memcpy(mesh.positions.data(),
-             attributeBuffer.data.data() + attributeOffset,
-             mesh.positions.data_size());
-    } else if (attribute.first == "NORMAL") {
-      mesh.normals.resize(attributeCount);
-      memcpy(mesh.normals.data(), attributeBuffer.data.data() + attributeOffset,
-             mesh.normals.data_size());
-    } else if (attribute.first == "TEXCOORD_0") {
-      mesh.texcoords.resize(attributeCount);
-      memcpy(mesh.texcoords.data(),
-             attributeBuffer.data.data() + attributeOffset,
-             mesh.texcoords.data_size());
-    } else if (attribute.first == "TEXCOORD_1") {
-      // TODO
-    } else if (attribute.first == "TANGENT") {
-      // Ignore
-    } else {
-      ASSERT_UNREACHABLE();
+    if (u32 texture =
+            GetTexture(inputPBRMaterial.metallicRoughnessTexture.index);
+        texture != 0) {
+      material->metallicRoughnessTexture = texture;
+      material->hasMetallicRoughnessTexture = true;
     }
+
+    if (u32 texture = GetTexture(inputMaterial.emissiveTexture.index);
+        texture != 0) {
+      material->emissiveTexture = texture;
+      material->hasEmissiveTexture = true;
+    }
+
+    if (u32 texture = GetTexture(inputMaterial.normalTexture.index);
+        texture != 0) {
+      material->normalMap = texture;
+      material->hasNormalMap = true;
+    }
+
+    if (u32 texture = GetTexture(inputMaterial.occlusionTexture.index);
+        texture != 0) {
+      material->ambientOcclusionMap = texture;
+      material->hasAmbientOcclusionMap = true;
+    }
+
+    // TODO: Alpha mode
+
+    // Load primitive's geometry
+
+    // Index infos
+    const auto& indexAccessor = input.accessors[primitive.indices];
+    const auto& indexBufferView = input.bufferViews[indexAccessor.bufferView];
+    usize indexOffset = indexAccessor.byteOffset + indexBufferView.byteOffset;
+    usize indexCount = indexAccessor.count;
+    IndexType indexType =
+        indexAccessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT
+            ? IndexType::Unsigned16
+            : IndexType::Unsigned32;
+    i32 indexStride = indexType == IndexType::Unsigned16 ? 2 : 4;
+    i32 indexLength = indexCount * indexStride;
+
+    mesh.indices.resize(indexLength);
+    memcpy(mesh.indices.data(),
+           input.buffers[indexBufferView.buffer].data.data() + indexOffset,
+           indexLength);
+
+    for (auto attribute : primitive.attributes) {
+      const auto& attributeAccessor = input.accessors[attribute.second];
+      const auto& attributeBufferView =
+          input.bufferViews[attributeAccessor.bufferView];
+      const auto& attributeBuffer = input.buffers[attributeBufferView.buffer];
+      usize attributeCount = attributeAccessor.count;
+      usize attributeOffset =
+          attributeAccessor.byteOffset + attributeBufferView.byteOffset;
+      usize attributeLength = attributeBufferView.byteLength -
+                              attributeAccessor.byteOffset;  // Is this true ?
+      usize attributeStride = attributeBufferView.byteStride;
+
+      if (attribute.first == "POSITION") {
+        mesh.positions.resize(attributeCount);
+        memcpy(mesh.positions.data(),
+               attributeBuffer.data.data() + attributeOffset,
+               mesh.positions.data_size());
+      } else if (attribute.first == "NORMAL") {
+        mesh.normals.resize(attributeCount);
+        memcpy(mesh.normals.data(),
+               attributeBuffer.data.data() + attributeOffset,
+               mesh.normals.data_size());
+      } else if (attribute.first == "TEXCOORD_0") {
+        mesh.texcoords.resize(attributeCount);
+        memcpy(mesh.texcoords.data(),
+               attributeBuffer.data.data() + attributeOffset,
+               mesh.texcoords.data_size());
+      } else if (attribute.first == "TEXCOORD_1") {
+        // TODO
+      } else if (attribute.first == "TANGENT") {
+        // Ignore
+      } else {
+        ASSERT_UNREACHABLE();
+      }
+    }
+
+    mesh.indexType = indexType;
+    mesh.indexCount = indexCount;
+    mesh.vertexCount = mesh.positions.element_count();
+
+    auto renderMesh = std::make_shared<RenderMesh>(mesh);
+
+    renderable.material = material;
+    renderable.mesh = renderMesh;
+
+    entities.add(entity);
   }
 
-  mesh.indexType = indexType;
-  mesh.indexCount = indexCount;
-  mesh.vertexCount = mesh.positions.element_count();
-
-  auto renderMesh = std::make_shared<RenderMesh>(std::move(mesh));
-
-  renderable.material = material;
-  renderable.mesh = renderMesh;
+  return entities;
 }
 
 void LoadNode(u32 nodeIndex,
@@ -219,12 +232,20 @@ void LoadNode(u32 nodeIndex,
   glm::mat4 worldTransform = parentTransform * localTransform;
 
   if (node.mesh != -1) {
-    auto entity = world->CreateEntity();
-    LoadMesh(node.mesh, input, entity);
-    entity.SetTransform(worldTransform);
+    u32 unnamed_cpt = 0;
 
-    if (!node.name.empty()) {
-      entity.AddComponent<NameComponent>(node.name);
+    auto entities = LoadMesh(node.mesh, input, world);
+    for (auto&& entity : entities) {
+      entity.SetTransform(worldTransform);
+
+      if (!node.name.empty()) {
+        entity.AddComponent<NameComponent>(node.name);
+      }
+
+      if (!entity.HasComponent<NameComponent>()) {
+        entity.AddComponent<NameComponent>("Unnamed #" +
+                                           std::to_string(unnamed_cpt++));
+      }
     }
   }
 

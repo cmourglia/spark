@@ -12,7 +12,7 @@ enum class IndexType {
 
 // NOTE: This is not the most efficient way to render a mesh,
 // but this is the easiest to update and maintain for now.
-struct Mesh {
+struct MeshComponent {
   beard::array<glm::vec3> positions;
   beard::array<glm::vec3> normals;
   beard::array<glm::vec2> texcoords;
@@ -28,20 +28,16 @@ struct Mesh {
 
 class RenderMesh {
  public:
-  explicit RenderMesh(Mesh mesh);
+  RenderMesh() = delete;
+  explicit RenderMesh(const MeshComponent& mesh);
 
   void Draw() const;
   void DrawInstanced(u32 instanceCount) const;
 
-  // clang-format off
-	glm::vec3* GetPositionBuffer() const { return m_PositionBuffer; }
-	glm::vec3* GetNormalBuffer() const   { return m_NormalBuffer; }
-	const Mesh& GetMesh() const          { return m_Mesh; }
-  // clang-format on
+  glm::vec3* GetPositionBuffer() const { return m_PositionBuffer; }
+  glm::vec3* GetNormalBuffer() const { return m_NormalBuffer; }
 
  private:
-  Mesh m_Mesh;
-
   glm::vec3* m_PositionBuffer;
   glm::vec3* m_NormalBuffer;
 
@@ -49,4 +45,5 @@ class RenderMesh {
   u32 m_Buffer = 0;
   u32 m_IndexStride = 0;
   u32 m_IndexType = 0;
+  u32 m_IndexCount = 0;
 };

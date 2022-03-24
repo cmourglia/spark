@@ -120,18 +120,17 @@ inline std::shared_ptr<Material> ProcessMaterial(
 }
 
 std::shared_ptr<RenderMesh> ProcessMesh(aiMesh* inputMesh,
-                                        const aiScene* scene) {
+                                        const aiScene* scene,
+                                        MeshComponent* mesh) {
   mesh->positions.resize(inputMesh->mNumVertices);
   mesh->normals.resize(inputMesh->mNumVertices);
   mesh->texcoords.reserve(inputMesh->mNumVertices);
 
   mesh->indices.resize(inputMesh->mNumFaces * 3 * sizeof(u32));
 
-  mesh.indices.Resize(inputMesh->mNumFaces * 3 * sizeof(u32));
-
-  mesh.vertexCount = inputMesh->mNumVertices;
-  mesh.indexCount = inputMesh->mNumFaces * 3;
-  mesh.indexType = IndexType::Unsigned32;
+  mesh->vertexCount = inputMesh->mNumVertices;
+  mesh->indexCount = inputMesh->mNumFaces * 3;
+  mesh->indexType = IndexType::Unsigned32;
 
   const aiVector3D* inVertices = inputMesh->mVertices;
   const aiVector3D* inNormals = inputMesh->mNormals;
@@ -158,7 +157,7 @@ std::shared_ptr<RenderMesh> ProcessMesh(aiMesh* inputMesh,
     indices[i * 3 + 2] = face.mIndices[2];
   }
 
-  auto renderMesh = std::make_shared<RenderMesh>(std::move(mesh));
+  auto renderMesh = std::make_shared<RenderMesh>(*mesh);
 
   return renderMesh;
 }
@@ -185,8 +184,10 @@ inline void ProcessNode(aiNode* node,
 
     auto entity = world->CreateEntity();
 
+    auto& mesh = entity.AddComponent<MeshComponent>();
     auto& renderable = entity.AddComponent<Renderable>();
-    renderable.mesh = ProcessMesh(scene->mMeshes[node->mMeshes[index]], scene);
+    renderable.mesh =
+        ProcessMesh(scene->mMeshes[node->mMeshes[index]], scene, &mesh);
     renderable.material = ProcessMaterial(inputMaterial, scene, path);
 
     entity.SetTransform(std::move(worldTransform));
