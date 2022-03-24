@@ -200,6 +200,8 @@ void UpdateAndRender(World* world) {
       {
         ImGui::Checkbox("Draw wireframe", &renderer.config.wireframeEnabled);
         ImGui::ColorEdit3("Wireframe color", &renderer.config.wireframeColor.r);
+        ImGui::DragFloat("Wireframe intensity",
+                         &renderer.config.wireframeIntensity, 0.1f, 0.0f, 5.0f);
       }
       ImGui::End();
 

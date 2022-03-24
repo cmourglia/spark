@@ -5,13 +5,13 @@
 #include <Spark/Renderer/Spark_Mesh.h>
 #include <Spark/Renderer/Spark_Program.h>
 
-#include <Beard/Macros.h>
+#include <beard/core/macros.h>
 
 #include <glad/glad.h>
 #include <entt/fwd.hpp>
 #include <glm/glm.hpp>
 
-#include <Beard/Array.h>
+#include <beard/containers/array.h>
 
 struct Renderable {
   std::shared_ptr<Material> material;
@@ -91,6 +91,12 @@ class Renderer {
   BackgroundType backgroundType = BackgroundType::Cubemap;
   i32 backgroundMipLevel = 0;
 
+  struct RenderConfig {
+    bool wireframeEnabled = false;
+    glm::vec3 wireframeColor = glm::vec3{0.0f, 0.0f, 0.0f};
+    float wireframeIntensity = 1.0f;
+  } config;
+
   struct BloomParams {
     bool enabled = true;
     f32 threshold = 1.0f;
@@ -136,4 +142,6 @@ class Renderer {
   // Post-process compute shaders
   Program* m_bloomProgram = nullptr;
   Program* m_outputProgram = nullptr;
+
+  Material* m_WireframeMaterial = nullptr;
 };

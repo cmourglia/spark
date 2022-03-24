@@ -35,6 +35,9 @@ void Renderer::Initialize(const glm::vec2& initialSize) {
   glCreateFramebuffers(2, m_fbos);
 
   Resize(initialSize);
+
+  m_WireframeMaterial =
+      new Material{"Wireframe", "pbr.vert.glsl", "color.frag.glsl"};
 }
 
 void Renderer::Resize(const glm::vec2& newSize) {
@@ -127,6 +130,10 @@ void Renderer::Resize(const glm::vec2& newSize) {
 }
 
 void Renderer::Render(const World& world) {
+  if (m_framebufferSize.x == 0.0f || m_framebufferSize.y == 0.0f) {
+    return;
+  }
+
   FrameStats* stats = FrameStats::Get();
   beard::timer timer;
   beard::timer frameTimer;
@@ -175,14 +182,37 @@ void Renderer::LightPass(const World& world) {
 
   auto view = world.GetRegistry().view<const TransformComponent, Renderable>();
   view.each([&context](const auto& transform, auto& renderable) {
-    Model model;
-    model.worldTransform = transform.transform;
-    model.mesh = renderable.mesh.get();
-    model.material = renderable.material.get();
+    Model model{
+        .material = renderable.material.get(),
+        .mesh = renderable.mesh.get(),
+        .worldTransform = transform.transform,
+    };
     model.Draw(&context);
   });
 
-  stats->frame.renderModels = timer.Tick();
+  stats->frame.renderModels = timer.tick();
+
+  if (config.wireframeEnabled) {
+    m_WireframeMaterial->albedo =
+        config.wireframeColor * config.wireframeIntensity;
+    // Draw wireframe
+    glDepthMask(GL_FALSE);
+    glDepthFunc(GL_LEQUAL);
+    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+
+    view.each([&context, this](const auto& transform, auto& renderable) {
+      Model model{
+          .material = m_WireframeMaterial,
+          .mesh = renderable.mesh.get(),
+          .worldTransform = transform.transform,
+      };
+      model.Draw(&context);
+    });
+
+    glDepthMask(GL_TRUE);
+    glDepthFunc(GL_LEQUAL);
+    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+  }
 
   if (backgroundType != BackgroundType::None) {
     m_backgroundProgram->Bind();
