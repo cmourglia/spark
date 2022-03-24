@@ -159,11 +159,9 @@ i32 main() {
   // LoadScene(R"(external\glTF-Sample-Models\2.0\SimpleSkin\glTF\SimpleSkin.gltf)",
   // &g_World);
 
-  ImGui::FileBrowser textureDialog;
-  textureDialog.SetTitle("Open texture...");
-  textureDialog.SetTypeFilters({".png", ".jpg", ".jpeg", ".tiff"});
-
-  static glm::vec2 lastSize(0, 0);
+  // ImGui::FileBrowser textureDialog;
+  // textureDialog.SetTitle("Open texture...");
+  // textureDialog.SetTypeFilters({".png", ".jpg", ".jpeg", ".tiff"});
 
   auto cameraEntity = g_World.CreateEntity();
   auto& cameraComponent = cameraEntity.AddComponent<CameraComponent>();
