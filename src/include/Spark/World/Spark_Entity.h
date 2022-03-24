@@ -27,6 +27,11 @@ class Entity {
   }
 
   template <typename T>
+  bool HasComponent() const {
+    return m_World->try_get<T>(m_Entity) != nullptr;
+  }
+
+  template <typename T>
   T& GetComponent() const {
     return m_World->get<T>(m_Entity);
   }
