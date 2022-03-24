@@ -1,6 +1,7 @@
 #include <Spark/Renderer/Spark_Program.h>
 
 #include <beard/containers/hash_map.h>
+#include <beard/fmt/fmt.h>
 #include <beard/io/io.h>
 
 #include <iostream>
@@ -9,45 +10,12 @@
 
 beard::string_hash_map<Program> g_programsByName;
 
-inline std::string GetShaderFullPath(const char* filename) {
-  return std::string("resources/shaders/") + filename;
+inline std::string GetShaderFullPath(std::string_view filename) {
+  return std::string("resources/shaders/") + std::string(filename);
 }
 
-inline std::string ParseShader(const char* input, int level = 0) {
-  // Tokenize string
-  std::vector<std::string> lines;
-
-  const char* ptr = input;
-  const char* lineStart = input;
-
-  while (*ptr) {
-    bool isNewLine = false;
-
-    switch (*ptr) {
-      case '\n': {
-        isNewLine = true;
-        if (*(ptr + 1) == '\r')
-          ++ptr;
-      } break;
-
-      case '\r': {
-        isNewLine = true;
-        if (*(ptr + 1) == '\n')
-          ++ptr;
-      } break;
-
-      default:
-        break;
-    }
-
-    ++ptr;
-    if (isNewLine) {
-      lines.emplace_back(lineStart, ptr);
-      lineStart = ptr;
-    }
-  }
-
-  lines.emplace_back(lineStart, ptr);
+inline std::string ParseShader(std::string_view input, int level = 0) {
+  auto lines = beard::fmt::tokenize(input, "\n\r");
 
   std::string content = "";
 
@@ -59,12 +27,12 @@ inline std::string ParseShader(const char* input, int level = 0) {
 
       auto filename = line.substr(i + 1, j - i - 1);
 
-      auto src = beard::io::read_whole_file(
-          GetShaderFullPath(filename.c_str()).c_str());
-      content += ParseShader(src.c_str(), level + 1);
-      content += "\n";  // Just in case
+      auto src = beard::io::read_whole_file(GetShaderFullPath(filename));
+      content += ParseShader(src, level + 1);
+      content += "\n";
     } else {
       content += line;
+      content += "\n";
     }
   }
 
@@ -86,7 +54,7 @@ inline u32 CompileShader(const char* filename,
 
   completeShader.append(src);
 
-  std::string finalShader = ParseShader(completeShader.c_str());
+  std::string finalShader = ParseShader(completeShader);
 
   const char* finalShaderData = finalShader.data();
 
