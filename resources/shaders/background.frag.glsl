@@ -55,9 +55,5 @@ void main()
 {
     vec3 color = textureLod(envmap, in_position, miplevel).rgb;
 
-    // color = tonemap_Uchimura(color);
-    // color = gamma(color);
-
-    // color = vec3(0);
     out_color = vec4(color, 1.0);
 }
