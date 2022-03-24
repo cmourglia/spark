@@ -33,3 +33,7 @@ Entity World::GetActiveCamera() const {
 
   return Entity{};
 }
+
+Entity World::GetEntity(entt::entity entity) const {
+  return {entity, (entt::registry*)&m_Registry};
+}

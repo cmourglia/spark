@@ -36,6 +36,7 @@ class World {
   void RemoveEntity(entt::entity);
 
   Entity GetActiveCamera() const;
+  Entity GetEntity(entt::entity entity) const;
 
   entt::registry& GetRegistry() { return m_Registry; }
   const entt::registry& GetRegistry() const { return m_Registry; }
