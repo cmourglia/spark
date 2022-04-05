@@ -40,6 +40,31 @@ beard::array<Entity> LoadMesh(u32 meshIndex,
     // entity.AddComponent<NameComponent>(inputMesh.name);
   }
 
+  auto GetTexture = [&input](i32 index) -> u32 {
+    if (index == -1) {
+      return 0;
+    }
+
+    const auto& texture = input.textures[index];
+    const auto& image = input.images[texture.source];
+    const auto& sampler = input.samplers[texture.sampler];
+    ASSERT(!image.image.empty(), "Empty image -> TODO");
+
+    const u8* data = nullptr;
+    if (false)  //(image.bufferView != -1)
+    {
+      const auto& imageView = input.bufferViews[image.bufferView];
+      const auto& imageBuffer = input.buffers[imageView.buffer];
+      // data                    = input.buffers[]
+    } else {
+      data = image.image.data();
+    }
+
+    u32 result = LoadTexture(image.width, image.height, image.component,
+                             image.image.data());
+    return result;
+  };
+
   ASSERT(!inputMesh.primitives.empty(), "No primitive ???");
   for (u32 i = 0; i < inputMesh.primitives.size(); ++i) {
     auto entity = world->CreateEntity();
@@ -48,77 +73,6 @@ beard::array<Entity> LoadMesh(u32 meshIndex,
 
     auto& mesh = entity.AddComponent<MeshComponent>();
     auto& renderable = entity.AddComponent<Renderable>();
-
-    // Load primitive's material
-    const auto& inputMaterial = input.materials[primitive.material];
-    const auto& inputPBRMaterial = inputMaterial.pbrMetallicRoughness;
-    auto material = std::make_shared<Material>(
-        inputMaterial.name.c_str(), "pbr.vert.glsl", "pbr.frag.glsl");
-
-    material->albedo = glm::make_vec3(inputPBRMaterial.baseColorFactor.data());
-    material->roughness = inputPBRMaterial.roughnessFactor;
-    material->metallic = inputPBRMaterial.metallicFactor;
-    material->emissive = glm::make_vec3(inputMaterial.emissiveFactor.data());
-    material->emissiveFactor = 1.0f;
-    material->hasEmissive = true;
-
-    auto GetTexture = [&input](i32 index) -> u32 {
-      if (index == -1) {
-        return 0;
-      }
-
-      const auto& texture = input.textures[index];
-      const auto& image = input.images[texture.source];
-      const auto& sampler = input.samplers[texture.sampler];
-      ASSERT(!image.image.empty(), "Empty image -> TODO");
-
-      const u8* data = nullptr;
-      if (false)  //(image.bufferView != -1)
-      {
-        const auto& imageView = input.bufferViews[image.bufferView];
-        const auto& imageBuffer = input.buffers[imageView.buffer];
-        // data                    = input.buffers[]
-      } else {
-        data = image.image.data();
-      }
-
-      u32 result = LoadTexture(image.width, image.height, image.component,
-                               image.image.data());
-      return result;
-    };
-
-    if (u32 texture = GetTexture(inputPBRMaterial.baseColorTexture.index);
-        texture != 0) {
-      material->albedoTexture = texture;
-      material->hasAlbedoTexture = true;
-    }
-
-    if (u32 texture =
-            GetTexture(inputPBRMaterial.metallicRoughnessTexture.index);
-        texture != 0) {
-      material->metallicRoughnessTexture = texture;
-      material->hasMetallicRoughnessTexture = true;
-    }
-
-    if (u32 texture = GetTexture(inputMaterial.emissiveTexture.index);
-        texture != 0) {
-      material->emissiveTexture = texture;
-      material->hasEmissiveTexture = true;
-    }
-
-    if (u32 texture = GetTexture(inputMaterial.normalTexture.index);
-        texture != 0) {
-      material->normalMap = texture;
-      material->hasNormalMap = true;
-    }
-
-    if (u32 texture = GetTexture(inputMaterial.occlusionTexture.index);
-        texture != 0) {
-      material->ambientOcclusionMap = texture;
-      material->hasAmbientOcclusionMap = true;
-    }
-
-    // TODO: Alpha mode
 
     // Load primitive's geometry
 
@@ -138,6 +92,8 @@ beard::array<Entity> LoadMesh(u32 meshIndex,
     memcpy(mesh.indices.data(),
            input.buffers[indexBufferView.buffer].data.data() + indexOffset,
            indexLength);
+
+    bool hasSkinningInfos = false;
 
     for (auto attribute : primitive.attributes) {
       const auto& attributeAccessor = input.accessors[attribute.second];
@@ -178,6 +134,58 @@ beard::array<Entity> LoadMesh(u32 meshIndex,
     mesh.indexType = indexType;
     mesh.indexCount = indexCount;
     mesh.vertexCount = mesh.positions.element_count();
+
+    // Load primitive's material
+    const auto& inputMaterial = input.materials[primitive.material];
+    const auto& inputPBRMaterial = inputMaterial.pbrMetallicRoughness;
+
+    std::shared_ptr<Material> material;
+
+    if (hasSkinningInfos) {
+    } else {
+      material = std::make_shared<Material>(inputMaterial.name.c_str(),
+                                            "pbr.vert.glsl", "pbr.frag.glsl");
+    }
+
+    material->albedo = glm::make_vec3(inputPBRMaterial.baseColorFactor.data());
+    material->roughness = inputPBRMaterial.roughnessFactor;
+    material->metallic = inputPBRMaterial.metallicFactor;
+    material->emissive = glm::make_vec3(inputMaterial.emissiveFactor.data());
+    material->emissiveFactor = 1.0f;
+    material->hasEmissive = true;
+
+    if (u32 texture = GetTexture(inputPBRMaterial.baseColorTexture.index);
+        texture != 0) {
+      material->albedoTexture = texture;
+      material->hasAlbedoTexture = true;
+    }
+
+    if (u32 texture =
+            GetTexture(inputPBRMaterial.metallicRoughnessTexture.index);
+        texture != 0) {
+      material->metallicRoughnessTexture = texture;
+      material->hasMetallicRoughnessTexture = true;
+    }
+
+    if (u32 texture = GetTexture(inputMaterial.emissiveTexture.index);
+        texture != 0) {
+      material->emissiveTexture = texture;
+      material->hasEmissiveTexture = true;
+    }
+
+    if (u32 texture = GetTexture(inputMaterial.normalTexture.index);
+        texture != 0) {
+      material->normalMap = texture;
+      material->hasNormalMap = true;
+    }
+
+    if (u32 texture = GetTexture(inputMaterial.occlusionTexture.index);
+        texture != 0) {
+      material->ambientOcclusionMap = texture;
+      material->hasAmbientOcclusionMap = true;
+    }
+
+    // TODO: Alpha mode
 
     auto renderMesh = std::make_shared<RenderMesh>(mesh);
 
