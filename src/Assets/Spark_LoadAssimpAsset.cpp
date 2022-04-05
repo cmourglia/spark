@@ -16,7 +16,7 @@
 
 #include <entt/entt.hpp>
 
-#include <assimp/pbrmaterial.h>
+#include <assimp/GltfMaterial.h>
 #include <assimp/postprocess.h>
 #include <assimp/scene.h>
 #include <assimp/Importer.hpp>
