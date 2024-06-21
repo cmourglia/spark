@@ -110,8 +110,8 @@ SetGraphicsPipelineShaders :: proc(
 	vertexShader, fragmentShader: vk.ShaderModule,
 	allocator := context.allocator,
 ) {
-    delete(shaderStages)
-    shaderStages = make([dynamic]vk.PipelineShaderStageCreateInfo, allocator)
+	delete(shaderStages)
+	shaderStages = make([dynamic]vk.PipelineShaderStageCreateInfo, allocator)
 
 	vertexShaderInfo := vk.PipelineShaderStageCreateInfo {
 		sType  = .PIPELINE_SHADER_STAGE_CREATE_INFO,
@@ -172,6 +172,28 @@ DisableGraphicsPipelineBlending :: proc(using config: ^GraphicsPipelineConfig) {
 	colorBlendAttachment.blendEnable = false
 }
 
+EnableGraphicsPipelineAdditiveBlending :: proc(using config: ^GraphicsPipelineConfig) {
+    colorBlendAttachment.colorWriteMask = {.R, .G, .B, .A}
+    colorBlendAttachment.blendEnable = true;
+    colorBlendAttachment.srcColorBlendFactor = .SRC_ALPHA
+    colorBlendAttachment.dstColorBlendFactor = .ONE
+    colorBlendAttachment.colorBlendOp = .ADD
+    colorBlendAttachment.srcAlphaBlendFactor = .ONE
+    colorBlendAttachment.dstAlphaBlendFactor = .ZERO
+    colorBlendAttachment.alphaBlendOp = .ADD
+}
+
+EnableGraphicsPipelineAlphaBlending :: proc(using config: ^GraphicsPipelineConfig) {
+    colorBlendAttachment.colorWriteMask = {.R, .G, .B, .A}
+    colorBlendAttachment.blendEnable = true;
+    colorBlendAttachment.srcColorBlendFactor = .SRC_ALPHA
+    colorBlendAttachment.dstColorBlendFactor = .ONE_MINUS_SRC_ALPHA
+    colorBlendAttachment.colorBlendOp = .ADD
+    colorBlendAttachment.srcAlphaBlendFactor = .ONE
+    colorBlendAttachment.dstAlphaBlendFactor = .ZERO
+    colorBlendAttachment.alphaBlendOp = .ADD
+}
+
 SetGraphicsPipelineColorAttachmentFormat :: proc(
 	using config: ^GraphicsPipelineConfig,
 	format: vk.Format,
@@ -197,7 +219,11 @@ DisableGraphicsPipelineDepthTest :: proc(using config: ^GraphicsPipelineConfig) 
 	depthStencil.maxDepthBounds = 1.0
 }
 
-EnableGraphicsPipelineDepthTest :: proc(using config: ^GraphicsPipelineConfig, depthWriteEnable: bool, op: vk.CompareOp) {
+EnableGraphicsPipelineDepthTest :: proc(
+	using config: ^GraphicsPipelineConfig,
+	depthWriteEnable: bool,
+	op: vk.CompareOp,
+) {
 	depthStencil.depthTestEnable = true
 	depthStencil.depthWriteEnable = b32(depthWriteEnable)
 	depthStencil.depthCompareOp = op
