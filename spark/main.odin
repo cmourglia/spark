@@ -45,6 +45,7 @@ Context :: struct {
 	meshPipelineLayout:        vk.PipelineLayout,
 	meshPipeline:              vk.Pipeline,
 	testMeshes:                []MeshAsset,
+	resizeRequested:           bool,
 }
 
 Swapchain :: struct {
@@ -157,10 +158,10 @@ InitVulkan :: proc(using ctx: ^Context) {
 
 	InitSwapchain(ctx)
 	InitSwapchainViews(ctx)
+	InitDescriptors(ctx)
 
 	InitCommands(ctx)
 	InitSyncStructures(ctx)
-	InitDescriptors(ctx)
 	InitPipelines(ctx)
 
 	InitDefaultData(ctx)
@@ -198,8 +199,6 @@ DeinitVulkan :: proc(using ctx: ^Context) {
 	vk.DestroyPipeline(device, meshPipeline, nil)
 	vk.DestroyPipelineLayout(device, meshPipelineLayout, nil)
 	vk.DestroyPipelineLayout(device, gradientPipelineLayout, nil)
-	vk.DestroyDescriptorPool(device, descriptorPool, nil)
-	vk.DestroyDescriptorSetLayout(device, drawImageDescriptorLayout, nil)
 
 	for frame in frames {
 		vk.DestroyFence(device, frame.renderFence, nil)
@@ -230,6 +229,10 @@ DeinitWindow :: proc(using ctx: ^Context) {
 MainLoop :: proc(using ctx: ^Context) {
 	for !glfw.WindowShouldClose(window) {
 		glfw.PollEvents()
+
+        if resizeRequested {
+            ResizeSwapchain(ctx)
+        }
 
 		imgui_impl_vulkan.NewFrame()
 		imgui_impl_glfw.NewFrame()
@@ -657,6 +660,16 @@ QuerySwapchainSupport :: proc(using ctx: ^Context) {
 	check(vk.GetPhysicalDeviceSurfaceCapabilitiesKHR(gpu, surface, &swapchainSupport.capabilities))
 }
 
+ResizeSwapchain :: proc(using ctx: ^Context) {
+    vk.DeviceWaitIdle(device)
+
+    DestroySwapchain(ctx)
+
+    InitSwapchain(ctx)
+    InitSwapchainViews(ctx)
+    InitDescriptors(ctx)
+}
+
 InitCommands :: proc(using ctx: ^Context) {
 	cmdPoolInfo := vk.CommandPoolCreateInfo {
 		sType            = .COMMAND_POOL_CREATE_INFO,
@@ -944,16 +957,19 @@ Draw :: proc(using ctx: ^Context) {
 	check(vk.ResetFences(device, 1, &frame.renderFence))
 
 	swapchainImageIndex: u32
-	check(
-		vk.AcquireNextImageKHR(
-			device,
-			swapchain.swapchain,
-			1000000000,
-			frame.swapchainSemaphore,
-			vk.Fence{},
-			&swapchainImageIndex,
-		),
+	res := vk.AcquireNextImageKHR(
+		device,
+		swapchain.swapchain,
+		1000000000,
+		frame.swapchainSemaphore,
+		vk.Fence{},
+		&swapchainImageIndex,
 	)
+
+	if res == .ERROR_OUT_OF_DATE_KHR {
+		resizeRequested = true
+        return
+	}
 
 	drawExtent = {drawImage.extent.width, drawImage.extent.height}
 
@@ -1021,7 +1037,12 @@ Draw :: proc(using ctx: ^Context) {
 		pImageIndices      = &swapchainImageIndex,
 	}
 
-	check(vk.QueuePresentKHR(queues[.Graphics], &presentInfo))
+	res = vk.QueuePresentKHR(queues[.Graphics], &presentInfo)
+
+	if res == .ERROR_OUT_OF_DATE_KHR {
+		resizeRequested = true
+        return
+	}
 
 	frameNumber += 1
 }
@@ -1097,7 +1118,7 @@ DrawGeometry :: proc(cmd: vk.CommandBuffer, using ctx: ^Context) {
 
 	vk.CmdSetScissor(cmd, 0, 1, &scissor)
 
-	pushConstants : GpuPushConstants
+	pushConstants: GpuPushConstants
 
 	view := glm.mat4LookAt({0, 0, -5}, {0, 0, 0}, {0, 1, 0})
 	proj := glm.mat4Perspective(
@@ -1157,6 +1178,9 @@ DrawImgui :: proc(using ctx: ^Context, cmd: vk.CommandBuffer, targetImageView: v
 }
 
 DestroySwapchain :: proc(using ctx: ^Context) {
+	vk.DestroyDescriptorSetLayout(device, drawImageDescriptorLayout, nil)
+	vk.DestroyDescriptorPool(device, descriptorPool, nil)
+
 	vk.DestroyImageView(device, depthImage.imageView, nil)
 	vma.DestroyImage(allocator, depthImage.image, depthImage.allocation)
 	vk.DestroyImageView(device, drawImage.imageView, nil)
