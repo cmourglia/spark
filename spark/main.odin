@@ -1062,7 +1062,7 @@ DrawBackground :: proc(cmd: vk.CommandBuffer, using ctx: ^Context) {
 		&computeEffects[currentEffect].data,
 	)
 
-	vk.CmdDispatch(cmd, u32(drawExtent.width / 16.0), u32(drawExtent.height / 16.0), 1)
+	vk.CmdDispatch(cmd, u32(drawExtent.width / 16.0) + 1, u32(drawExtent.height / 16.0) + 1, 1)
 }
 
 DrawGeometry :: proc(cmd: vk.CommandBuffer, using ctx: ^Context) {
