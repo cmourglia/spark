@@ -17,26 +17,16 @@ import vk "vendor:vulkan"
 
 Context :: struct {
 	window:                    glfw.WindowHandle,
-	instance:                  vk.Instance,
-	surface:                   vk.SurfaceKHR,
-	gpu:                       vk.PhysicalDevice,
-	device:                    vk.Device,
-	queueIndices:              [QueueFamily]int,
-	queues:                    [QueueFamily]vk.Queue,
+	device:                    Device,
 	swapchain:                 Swapchain,
-	swapchainSupport:          SwapchainSupportDetails,
-	debugMessenger:            vk.DebugUtilsMessengerEXT,
 	frames:                    [FRAME_OVERLAP]FrameData,
-	allocator:                 vma.Allocator,
 	drawImage:                 Image,
 	depthImage:                Image,
 	drawExtent:                vk.Extent2D,
-	descriptorPool:            vk.DescriptorPool,
+	drawImageDescriptorPool:   vk.DescriptorPool,
 	drawImageDescriptors:      vk.DescriptorSet,
 	drawImageDescriptorLayout: vk.DescriptorSetLayout,
-	immFence:                  vk.Fence,
-	immCommandBuffer:          vk.CommandBuffer,
-	immCommandPool:            vk.CommandPool,
+	immedateContext:           ImmediateContext,
 	imguiPool:                 vk.DescriptorPool,
 	frameNumber:               int,
 	gradientPipelineLayout:    vk.PipelineLayout,
@@ -48,19 +38,11 @@ Context :: struct {
 	resizeRequested:           bool,
 }
 
-Swapchain :: struct {
-	swapchain:   vk.SwapchainKHR,
-	format:      vk.SurfaceFormatKHR,
-	presentMode: vk.PresentModeKHR,
-	extent:      vk.Extent2D,
-	images:      []vk.Image,
-	imageViews:  []vk.ImageView,
-}
-
-SwapchainSupportDetails :: struct {
-	capabilities: vk.SurfaceCapabilitiesKHR,
-	formats:      []vk.SurfaceFormatKHR,
-	presentModes: []vk.PresentModeKHR,
+ImmediateContext :: struct {
+	device:        ^Device,
+	fence:         vk.Fence,
+	commandBuffer: vk.CommandBuffer,
+	commandPool:   vk.CommandPool,
 }
 
 FrameData :: struct {
@@ -135,38 +117,21 @@ InitWindow :: proc(using ctx: ^Context) {
 }
 
 InitVulkan :: proc(using ctx: ^Context) {
-	CreateInstance(ctx)
+	device = InitDevice(window)
 
-	CreateSurface(ctx)
-	PickPhysicalDevice(ctx)
-	FindQueueFamilies(ctx)
-	CreateDevice(ctx)
-
-	for &q, i in queues {
-		vk.GetDeviceQueue(device, u32(queueIndices[i]), 0, &q)
-	}
-
-	vulkan_functions := vma.create_vulkan_functions()
-	allocator_info := vma.AllocatorCreateInfo {
-		physicalDevice   = gpu,
-		device           = device,
-		instance         = instance,
-		flags            = {.BUFFER_DEVICE_ADDRESS},
-		pVulkanFunctions = &vulkan_functions,
-	}
-	check(vma.CreateAllocator(&allocator_info, &allocator))
-
-	InitSwapchain(ctx)
-	InitSwapchainViews(ctx)
-	InitDescriptors(ctx)
+	InitSwapchain(device, &swapchain)
+	InitDrawImage(ctx)
+	InitDrawImageDescriptors(ctx)
 
 	InitCommands(ctx)
 	InitSyncStructures(ctx)
 	InitPipelines(ctx)
 
+	InitImmediateContext(ctx)
+
 	InitDefaultData(ctx)
 
-	testMeshes = LoadGltf(ctx, "models/basicmesh.glb") or_else os.exit(1)
+	testMeshes = LoadGltf(&immedateContext, "models/basicmesh.glb") or_else os.exit(1)
 
 	InitImgui(ctx)
 
@@ -174,51 +139,45 @@ InitVulkan :: proc(using ctx: ^Context) {
 }
 
 DeinitVulkan :: proc(using ctx: ^Context) {
-	vk.DeviceWaitIdle(device)
+	vk.DeviceWaitIdle(device.device)
 
 	// TODO: Deletion queue
 
 	imgui_impl_vulkan.Shutdown()
 	imgui_impl_glfw.Shutdown()
-	vk.DestroyDescriptorPool(device, imguiPool, nil)
+	vk.DestroyDescriptorPool(device.device, imguiPool, nil)
 	im.DestroyContext()
 
 	for mesh in testMeshes {
-		DeleteMeshAsset(ctx, mesh)
+		DeleteMeshAsset(device, mesh)
 	}
 	delete(testMeshes)
 
-	vk.DestroyCommandPool(device, immCommandPool, nil)
-	vk.DestroyFence(device, immFence, nil)
+	DestroyImmediateContext(immedateContext)
 
 	for effect in computeEffects {
-		vk.DestroyPipeline(device, effect.pipeline, nil)
+		vk.DestroyPipeline(device.device, effect.pipeline, nil)
 	}
 	delete(computeEffects)
 
-	vk.DestroyPipeline(device, meshPipeline, nil)
-	vk.DestroyPipelineLayout(device, meshPipelineLayout, nil)
-	vk.DestroyPipelineLayout(device, gradientPipelineLayout, nil)
+	vk.DestroyPipeline(device.device, meshPipeline, nil)
+	vk.DestroyPipelineLayout(device.device, meshPipelineLayout, nil)
+	vk.DestroyPipelineLayout(device.device, gradientPipelineLayout, nil)
 
 	for frame in frames {
-		vk.DestroyFence(device, frame.renderFence, nil)
-		vk.DestroySemaphore(device, frame.renderSemaphore, nil)
-		vk.DestroySemaphore(device, frame.swapchainSemaphore, nil)
-		vk.DestroyCommandPool(device, frame.commandPool, nil)
+		vk.DestroyFence(device.device, frame.renderFence, nil)
+		vk.DestroySemaphore(device.device, frame.renderSemaphore, nil)
+		vk.DestroySemaphore(device.device, frame.swapchainSemaphore, nil)
+		vk.DestroyCommandPool(device.device, frame.commandPool, nil)
 	}
 
-	DestroySwapchain(ctx)
+	vk.DestroyDescriptorPool(device.device, drawImageDescriptorPool, nil)
 
-	vma.DestroyAllocator(allocator)
+	DestroyDrawImageDescriptors(ctx)
+	DestroyDrawImage(ctx)
+	DestroySwapchain(device, &swapchain)
 
-	vk.DestroyDevice(device, nil)
-	vk.DestroySurfaceKHR(instance, surface, nil)
-
-	when ODIN_DEBUG {
-		vk.DestroyDebugUtilsMessengerEXT(instance, debugMessenger, nil)
-	}
-
-	vk.DestroyInstance(instance, nil)
+	DeinitDevice(&device)
 }
 
 DeinitWindow :: proc(using ctx: ^Context) {
@@ -230,9 +189,11 @@ MainLoop :: proc(using ctx: ^Context) {
 	for !glfw.WindowShouldClose(window) {
 		glfw.PollEvents()
 
-        if resizeRequested {
-            ResizeSwapchain(ctx)
-        }
+		if resizeRequested {
+			ResizeSwapchain(device, &swapchain)
+			ResizeDrawImage(ctx)
+			resizeRequested = false
+		}
 
 		imgui_impl_vulkan.NewFrame()
 		imgui_impl_glfw.NewFrame()
@@ -259,162 +220,6 @@ MainLoop :: proc(using ctx: ^Context) {
 	}
 }
 
-CreateInstance :: proc(using ctx: ^Context) {
-	vk.load_proc_addresses_global(rawptr(glfw.GetInstanceProcAddress))
-
-	appInfo := vk.ApplicationInfo {
-		sType              = .APPLICATION_INFO,
-		pApplicationName   = "Spark",
-		applicationVersion = vk.MAKE_VERSION(1, 0, 0),
-		pEngineName        = "None",
-		engineVersion      = vk.MAKE_VERSION(1, 0, 0),
-		apiVersion         = vk.API_VERSION_1_3,
-	}
-
-	info := vk.InstanceCreateInfo {
-		sType            = .INSTANCE_CREATE_INFO,
-		pApplicationInfo = &appInfo,
-	}
-
-	requiredExtensions := glfw.GetRequiredInstanceExtensions()
-	extensions := make([dynamic]cstring, context.temp_allocator)
-
-	for ext in requiredExtensions {
-		append(&extensions, ext)
-	}
-
-	when ODIN_DEBUG {
-		info.enabledLayerCount = u32(len(VALIDATION_LAYERS))
-		info.ppEnabledLayerNames = &VALIDATION_LAYERS[0]
-		append(&extensions, vk.EXT_DEBUG_UTILS_EXTENSION_NAME)
-
-		debugMessenger_info := vk.DebugUtilsMessengerCreateInfoEXT {
-			sType           = .DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
-			messageSeverity = {.VERBOSE | .INFO | .WARNING | .ERROR},
-			messageType     = {.GENERAL, .VALIDATION, .PERFORMANCE, .DEVICE_ADDRESS_BINDING},
-			pfnUserCallback = DebugCallback,
-			pUserData       = transmute(rawptr)&g_ctx,
-		}
-
-		info.pNext = &debugMessenger_info
-	}
-
-	info.enabledExtensionCount = u32(len(extensions))
-	info.ppEnabledExtensionNames = raw_data(extensions)
-
-	check(vk.CreateInstance(&info, nil, &instance))
-
-	vk.load_proc_addresses_instance(instance)
-
-	when ODIN_DEBUG {
-		check(
-			vk.CreateDebugUtilsMessengerEXT(instance, &debugMessenger_info, nil, &debugMessenger),
-		)
-	}
-}
-
-CreateSurface :: proc(using ctx: ^Context) {
-	check(glfw.CreateWindowSurface(instance, window, nil, &surface))
-}
-
-PickPhysicalDevice :: proc(using ctx: ^Context) {
-	// TODO: Proper compat check
-	device_count: u32
-	vk.EnumeratePhysicalDevices(instance, &device_count, nil)
-	devices := make([]vk.PhysicalDevice, device_count, context.temp_allocator)
-	vk.EnumeratePhysicalDevices(instance, &device_count, raw_data(devices))
-
-	assert(len(devices) > 0)
-
-	ctx.gpu = devices[0]
-}
-
-FindQueueFamilies :: proc(using ctx: ^Context) {
-	queueCount: u32
-	vk.GetPhysicalDeviceQueueFamilyProperties(gpu, &queueCount, nil)
-	availableQueues := make([]vk.QueueFamilyProperties, queueCount, context.temp_allocator)
-	vk.GetPhysicalDeviceQueueFamilyProperties(gpu, &queueCount, raw_data(availableQueues))
-
-	for q, i in availableQueues {
-		if .GRAPHICS in q.queueFlags && queueIndices[.Graphics] == -1 {
-			queueIndices[.Graphics] = i
-		}
-
-		if .COMPUTE in q.queueFlags && queueIndices[.Compute] == -1 {
-			queueIndices[.Compute] = i
-		}
-
-		presentSupport: b32
-		vk.GetPhysicalDeviceSurfaceSupportKHR(gpu, u32(i), surface, &presentSupport)
-		if presentSupport && queueIndices[.Present] == -1 {
-			queueIndices[.Present] = i
-		}
-
-		allFound := true
-		for qi in queueIndices {
-			if qi == -1 {
-				allFound = false
-				break
-			}
-		}
-
-		if allFound {
-			break
-		}
-	}
-}
-
-CreateDevice :: proc(using ctx: ^Context) {
-	uniqueIndices: map[int]b8
-	defer delete(uniqueIndices)
-
-	for i in queueIndices {
-		uniqueIndices[i] = true
-	}
-
-	queueInfos := make([dynamic]vk.DeviceQueueCreateInfo, context.temp_allocator)
-	for i in uniqueIndices {
-		priority := f32(1)
-		queue_info := vk.DeviceQueueCreateInfo {
-			sType            = .DEVICE_QUEUE_CREATE_INFO,
-			queueFamilyIndex = u32(i),
-			queueCount       = 1,
-			pQueuePriorities = &priority,
-		}
-
-		append(&queueInfos, queue_info)
-	}
-
-	deviceFeatures13 := vk.PhysicalDeviceVulkan13Features {
-		sType            = .PHYSICAL_DEVICE_VULKAN_1_3_FEATURES,
-		dynamicRendering = true,
-		synchronization2 = true,
-	}
-
-	deviceFeatures12 := vk.PhysicalDeviceVulkan12Features {
-		sType               = .PHYSICAL_DEVICE_VULKAN_1_2_FEATURES,
-		pNext               = &deviceFeatures13,
-		bufferDeviceAddress = true,
-		descriptorIndexing  = true,
-	}
-
-	deviceFeatures := vk.PhysicalDeviceFeatures2 {
-		sType = .PHYSICAL_DEVICE_FEATURES_2,
-		pNext = &deviceFeatures12,
-	}
-
-	deviceInfo := vk.DeviceCreateInfo {
-		sType                   = .DEVICE_CREATE_INFO,
-		pNext                   = &deviceFeatures,
-		queueCreateInfoCount    = u32(len(queueInfos)),
-		pQueueCreateInfos       = raw_data(queueInfos),
-		enabledExtensionCount   = u32(len(DEVICE_EXTENSIONS)),
-		ppEnabledExtensionNames = &DEVICE_EXTENSIONS[0],
-	}
-
-	check(vk.CreateDevice(gpu, &deviceInfo, nil, &device))
-}
-
 ChooseSwapchainFormat :: proc(formats: []vk.SurfaceFormatKHR) -> vk.SurfaceFormatKHR {
 	for format in formats {
 		if format.format == .B8G8R8A8_SNORM && format.colorSpace == .SRGB_NONLINEAR {
@@ -436,249 +241,15 @@ ChooseSwapchainPresentMode :: proc(presentModes: []vk.PresentModeKHR) -> vk.Pres
 	return .FIFO
 }
 
-ChooseSwapchainExtent :: proc(
-	window: glfw.WindowHandle,
-	caps: vk.SurfaceCapabilitiesKHR,
-) -> vk.Extent2D {
-	if caps.currentExtent.width != max(u32) {
-		return caps.currentExtent
-	}
-
-	width, height := glfw.GetFramebufferSize(window)
-	actualExtent := vk.Extent2D{u32(width), u32(height)}
-
-	actualExtent.width = clamp(
-		actualExtent.width,
-		caps.minImageExtent.width,
-		caps.maxImageExtent.width,
-	)
-	actualExtent.height = clamp(
-		actualExtent.height,
-		caps.minImageExtent.height,
-		caps.maxImageExtent.height,
-	)
-
-	return actualExtent
-}
-
-InitSwapchain :: proc(using ctx: ^Context) {
-	QuerySwapchainSupport(ctx)
-
-	swapchain.format = ChooseSwapchainFormat(swapchainSupport.formats)
-	swapchain.presentMode = ChooseSwapchainPresentMode(swapchainSupport.presentModes)
-	swapchain.extent = ChooseSwapchainExtent(window, swapchainSupport.capabilities)
-
-	imageCount := swapchainSupport.capabilities.minImageCount + 1
-	if swapchainSupport.capabilities.maxImageCount > 0 {
-		imageCount = max(imageCount, swapchainSupport.capabilities.maxImageCount)
-	}
-
-	info := vk.SwapchainCreateInfoKHR {
-		sType            = .SWAPCHAIN_CREATE_INFO_KHR,
-		surface          = surface,
-		minImageCount    = imageCount,
-		imageFormat      = swapchain.format.format,
-		imageColorSpace  = swapchain.format.colorSpace,
-		imageExtent      = swapchain.extent,
-		imageArrayLayers = 1,
-		imageUsage       = {.COLOR_ATTACHMENT, .TRANSFER_DST},
-		preTransform     = swapchainSupport.capabilities.currentTransform,
-		compositeAlpha   = {.OPAQUE},
-		presentMode      = swapchain.presentMode,
-		clipped          = true,
-		oldSwapchain     = vk.SwapchainKHR{},
-	}
-
-	queueFamilyIndices := [?]u32{u32(queueIndices[.Graphics]), u32(queueIndices[.Present])}
-	if queueIndices[.Graphics] != queueIndices[.Present] {
-		info.imageSharingMode = .CONCURRENT
-		info.queueFamilyIndexCount = 2
-		info.pQueueFamilyIndices = &queueFamilyIndices[0]
-	}
-
-	check(vk.CreateSwapchainKHR(device, &info, nil, &swapchain.swapchain))
-
-	check(vk.GetSwapchainImagesKHR(device, swapchain.swapchain, &imageCount, nil))
-	assert(imageCount > 0)
-	swapchain.images = make([]vk.Image, imageCount)
-	check(vk.GetSwapchainImagesKHR(device, swapchain.swapchain, &imageCount, &swapchain.images[0]))
-
-	// TODO: Store the window extents
-	drawImageExtent := vk.Extent3D{swapchain.extent.width, swapchain.extent.height, 1}
-
-	drawImage.format = .R16G16B16A16_SFLOAT
-	drawImage.extent = drawImageExtent
-
-	drawImageUsage := vk.ImageUsageFlags{.TRANSFER_SRC, .TRANSFER_DST, .STORAGE, .COLOR_ATTACHMENT}
-
-	drawImageInfo := vk.ImageCreateInfo {
-		sType       = .IMAGE_CREATE_INFO,
-		imageType   = .D2,
-		format      = drawImage.format,
-		extent      = drawImage.extent,
-		mipLevels   = 1,
-		arrayLayers = 1,
-		samples     = {._1},
-		tiling      = .OPTIMAL,
-		usage       = drawImageUsage,
-	}
-
-	drawImageAllocInfo := vma.AllocationCreateInfo {
-		usage         = .GPU_ONLY,
-		requiredFlags = {.DEVICE_LOCAL},
-	}
-
-	check(
-		vma.CreateImage(
-			allocator,
-			&drawImageInfo,
-			&drawImageAllocInfo,
-			&drawImage.image,
-			&drawImage.allocation,
-			nil,
-		),
-	)
-
-	drawImageViewInfo := vk.ImageViewCreateInfo {
-		sType = .IMAGE_VIEW_CREATE_INFO,
-		viewType = .D2,
-		image = drawImage.image,
-		format = drawImage.format,
-		subresourceRange = {
-			baseMipLevel = 0,
-			levelCount = 1,
-			baseArrayLayer = 0,
-			layerCount = 1,
-			aspectMask = {.COLOR},
-		},
-	}
-
-	check(vk.CreateImageView(device, &drawImageViewInfo, nil, &drawImage.imageView))
-
-	depthImage.format = .D32_SFLOAT
-	depthImage.extent = drawImageExtent
-
-	depthImageUsage := vk.ImageUsageFlags{.DEPTH_STENCIL_ATTACHMENT}
-
-	depthImageInfo := vk.ImageCreateInfo {
-		sType       = .IMAGE_CREATE_INFO,
-		imageType   = .D2,
-		format      = depthImage.format,
-		extent      = depthImage.extent,
-		mipLevels   = 1,
-		arrayLayers = 1,
-		samples     = {._1},
-		tiling      = .OPTIMAL,
-		usage       = depthImageUsage,
-	}
-
-	depthImageAllocInfo := vma.AllocationCreateInfo {
-		usage         = .GPU_ONLY,
-		requiredFlags = {.DEVICE_LOCAL},
-	}
-
-	check(
-		vma.CreateImage(
-			allocator,
-			&depthImageInfo,
-			&depthImageAllocInfo,
-			&depthImage.image,
-			&depthImage.allocation,
-			nil,
-		),
-	)
-
-	depthImageViewInfo := vk.ImageViewCreateInfo {
-		sType = .IMAGE_VIEW_CREATE_INFO,
-		viewType = .D2,
-		image = depthImage.image,
-		format = depthImage.format,
-		subresourceRange = {
-			baseMipLevel = 0,
-			levelCount = 1,
-			baseArrayLayer = 0,
-			layerCount = 1,
-			aspectMask = {.DEPTH},
-		},
-	}
-
-	check(vk.CreateImageView(device, &depthImageViewInfo, nil, &depthImage.imageView))
-}
-
-InitSwapchainViews :: proc(using ctx: ^Context) {
-	swapchain.imageViews = make([]vk.ImageView, len(swapchain.images))
-
-	for _, i in swapchain.imageViews {
-		info := vk.ImageViewCreateInfo {
-			sType = .IMAGE_VIEW_CREATE_INFO,
-			image = swapchain.images[i],
-			viewType = .D2,
-			format = swapchain.format.format,
-			components = {.IDENTITY, .IDENTITY, .IDENTITY, .IDENTITY},
-			subresourceRange = {
-				aspectMask = {.COLOR},
-				baseMipLevel = 0,
-				levelCount = 1,
-				baseArrayLayer = 0,
-				layerCount = 1,
-			},
-		}
-
-		check(vk.CreateImageView(device, &info, nil, &swapchain.imageViews[i]))
-	}
-}
-
-QuerySwapchainSupport :: proc(using ctx: ^Context) {
-	formatCount: u32
-	check(vk.GetPhysicalDeviceSurfaceFormatsKHR(gpu, surface, &formatCount, nil))
-	assert(formatCount != 0)
-
-	swapchainSupport.formats = make([]vk.SurfaceFormatKHR, formatCount)
-	check(
-		vk.GetPhysicalDeviceSurfaceFormatsKHR(
-			gpu,
-			surface,
-			&formatCount,
-			raw_data(swapchainSupport.formats),
-		),
-	)
-
-	presentModeCount: u32
-	check(vk.GetPhysicalDeviceSurfacePresentModesKHR(gpu, surface, &presentModeCount, nil))
-	assert(presentModeCount != 0)
-
-	swapchainSupport.presentModes = make([]vk.PresentModeKHR, presentModeCount)
-	check(
-		vk.GetPhysicalDeviceSurfacePresentModesKHR(
-			gpu,
-			surface,
-			&presentModeCount,
-			raw_data(swapchainSupport.presentModes),
-		),
-	)
-
-	check(vk.GetPhysicalDeviceSurfaceCapabilitiesKHR(gpu, surface, &swapchainSupport.capabilities))
-}
-
-ResizeSwapchain :: proc(using ctx: ^Context) {
-    vk.DeviceWaitIdle(device)
-
-    DestroySwapchain(ctx)
-
-    InitSwapchain(ctx)
-    InitSwapchainViews(ctx)
-    InitDescriptors(ctx)
-}
-
 InitCommands :: proc(using ctx: ^Context) {
 	cmdPoolInfo := vk.CommandPoolCreateInfo {
 		sType            = .COMMAND_POOL_CREATE_INFO,
 		flags            = {.RESET_COMMAND_BUFFER},
-		queueFamilyIndex = u32(queueIndices[.Graphics]),
+		queueFamilyIndex = u32(device.queueIndices[.Graphics]),
 	}
 
 	for &frame in frames {
-		check(vk.CreateCommandPool(device, &cmdPoolInfo, nil, &frame.commandPool))
+		check(vk.CreateCommandPool(device.device, &cmdPoolInfo, nil, &frame.commandPool))
 
 		cmdAllocInfo := vk.CommandBufferAllocateInfo {
 			sType              = .COMMAND_BUFFER_ALLOCATE_INFO,
@@ -687,19 +258,8 @@ InitCommands :: proc(using ctx: ^Context) {
 			level              = .PRIMARY,
 		}
 
-		check(vk.AllocateCommandBuffers(device, &cmdAllocInfo, &frame.commandBuffer))
+		check(vk.AllocateCommandBuffers(device.device, &cmdAllocInfo, &frame.commandBuffer))
 	}
-
-	check(vk.CreateCommandPool(device, &cmdPoolInfo, nil, &immCommandPool))
-
-	cmdAllocInfo := vk.CommandBufferAllocateInfo {
-		sType              = .COMMAND_BUFFER_ALLOCATE_INFO,
-		commandPool        = immCommandPool,
-		commandBufferCount = 1,
-		level              = .PRIMARY,
-	}
-
-	check(vk.AllocateCommandBuffers(device, &cmdAllocInfo, &immCommandBuffer))
 }
 
 InitSyncStructures :: proc(using ctx: ^Context) {
@@ -713,25 +273,28 @@ InitSyncStructures :: proc(using ctx: ^Context) {
 	}
 
 	for &frame in frames {
-		check(vk.CreateFence(device, &fenceInfo, nil, &frame.renderFence))
+		check(vk.CreateFence(device.device, &fenceInfo, nil, &frame.renderFence))
 
-		check(vk.CreateSemaphore(device, &semaphoreInfo, nil, &frame.swapchainSemaphore))
-		check(vk.CreateSemaphore(device, &semaphoreInfo, nil, &frame.renderSemaphore))
+		check(vk.CreateSemaphore(device.device, &semaphoreInfo, nil, &frame.swapchainSemaphore))
+		check(vk.CreateSemaphore(device.device, &semaphoreInfo, nil, &frame.renderSemaphore))
 	}
 
-	check(vk.CreateFence(device, &fenceInfo, nil, &immFence))
 }
 
-InitDescriptors :: proc(using ctx: ^Context) {
-	sizes := [?]DescriptorPoolSizeRatio{{.STORAGE_IMAGE, 1}}
-	descriptorPool = CreateDescriptorPool(device, 10, sizes[:])
+InitDrawImageDescriptors :: proc(using ctx: ^Context) {
+	if (drawImageDescriptorPool == vk.DescriptorPool{}) {
+		sizes := [?]DescriptorPoolSizeRatio{{.STORAGE_IMAGE, 1}}
+		drawImageDescriptorPool = CreateDescriptorPool(device.device, 2, sizes[:])
+	} else {
+		vk.ResetDescriptorPool(device.device, drawImageDescriptorPool, {})
+	}
 
 	bindings := [?]vk.DescriptorSetLayoutBinding {
 		{binding = 0, descriptorType = .STORAGE_IMAGE, descriptorCount = 1},
 	}
 
 	drawImageDescriptorLayout = BuildDescriptorLayout(
-		device,
+		device.device,
 		bindings[:],
 		{.COMPUTE},
 		nil,
@@ -740,12 +303,12 @@ InitDescriptors :: proc(using ctx: ^Context) {
 
 	allocInfo := vk.DescriptorSetAllocateInfo {
 		sType              = .DESCRIPTOR_SET_ALLOCATE_INFO,
-		descriptorPool     = descriptorPool,
+		descriptorPool     = drawImageDescriptorPool,
 		descriptorSetCount = 1,
 		pSetLayouts        = &drawImageDescriptorLayout,
 	}
 
-	check(vk.AllocateDescriptorSets(device, &allocInfo, &drawImageDescriptors))
+	check(vk.AllocateDescriptorSets(device.device, &allocInfo, &drawImageDescriptors))
 
 	imgInfo := vk.DescriptorImageInfo {
 		imageLayout = .GENERAL,
@@ -761,7 +324,7 @@ InitDescriptors :: proc(using ctx: ^Context) {
 		pImageInfo      = &imgInfo,
 	}
 
-	vk.UpdateDescriptorSets(device, 1, &drawImageWrite, 0, nil)
+	vk.UpdateDescriptorSets(device.device, 1, &drawImageWrite, 0, nil)
 }
 
 InitPipelines :: proc(using ctx: ^Context) {
@@ -783,11 +346,11 @@ InitBackgroundPipeline :: proc(using ctx: ^Context) {
 		pushConstantRangeCount = 1,
 		pPushConstantRanges    = &pushConstant,
 	}
-	check(vk.CreatePipelineLayout(device, &computeLayoutInfo, nil, &gradientPipelineLayout))
+	check(vk.CreatePipelineLayout(device.device, &computeLayoutInfo, nil, &gradientPipelineLayout))
 
 	gradientShader :=
-		LoadShaderModule(device, "shaders/bin/gradient_color.comp.spv") or_else os.exit(1)
-	defer vk.DestroyShaderModule(device, gradientShader, nil)
+		LoadShaderModule(device.device, "shaders/bin/gradient_color.comp.spv") or_else os.exit(1)
+	defer vk.DestroyShaderModule(device.device, gradientShader, nil)
 
 	gradient := ComputeEffect {
 		layout = gradientPipelineLayout,
@@ -810,7 +373,7 @@ InitBackgroundPipeline :: proc(using ctx: ^Context) {
 
 	check(
 		vk.CreateComputePipelines(
-			device,
+			device.device,
 			vk.PipelineCache{},
 			1,
 			&gradientComputePipelineInfo,
@@ -821,8 +384,8 @@ InitBackgroundPipeline :: proc(using ctx: ^Context) {
 
 	append(&computeEffects, gradient)
 
-	skyShader := LoadShaderModule(device, "shaders/bin/sky.comp.spv") or_else os.exit(1)
-	defer vk.DestroyShaderModule(device, skyShader, nil)
+	skyShader := LoadShaderModule(device.device, "shaders/bin/sky.comp.spv") or_else os.exit(1)
+	defer vk.DestroyShaderModule(device.device, skyShader, nil)
 
 	sky := ComputeEffect {
 		layout = gradientPipelineLayout,
@@ -845,7 +408,7 @@ InitBackgroundPipeline :: proc(using ctx: ^Context) {
 
 	check(
 		vk.CreateComputePipelines(
-			device,
+			device.device,
 			vk.PipelineCache{},
 			1,
 			&skyComputePipelineInfo,
@@ -859,11 +422,14 @@ InitBackgroundPipeline :: proc(using ctx: ^Context) {
 
 InitMeshPipeline :: proc(using ctx: ^Context) {
 	triangleVertShader :=
-		LoadShaderModule(device, "shaders/bin/colored_triangle_mesh.vert.spv") or_else os.exit(1)
-	defer vk.DestroyShaderModule(device, triangleVertShader, nil)
+		LoadShaderModule(
+			device.device,
+			"shaders/bin/colored_triangle_mesh.vert.spv",
+		) or_else os.exit(1)
+	defer vk.DestroyShaderModule(device.device, triangleVertShader, nil)
 	triangleFragShader :=
-		LoadShaderModule(device, "shaders/bin/colored_triangle.frag.spv") or_else os.exit(1)
-	defer vk.DestroyShaderModule(device, triangleFragShader, nil)
+		LoadShaderModule(device.device, "shaders/bin/colored_triangle.frag.spv") or_else os.exit(1)
+	defer vk.DestroyShaderModule(device.device, triangleFragShader, nil)
 
 	bufferRange := vk.PushConstantRange {
 		offset     = 0,
@@ -876,7 +442,7 @@ InitMeshPipeline :: proc(using ctx: ^Context) {
 		pushConstantRangeCount = 1,
 		pPushConstantRanges    = &bufferRange,
 	}
-	check(vk.CreatePipelineLayout(device, &pipelineLayoutInfo, nil, &meshPipelineLayout))
+	check(vk.CreatePipelineLayout(device.device, &pipelineLayoutInfo, nil, &meshPipelineLayout))
 
 	pipelineConfig := DefaultGraphicsPipelineConfig()
 	pipelineConfig.pipelineLayout = meshPipelineLayout
@@ -895,7 +461,7 @@ InitMeshPipeline :: proc(using ctx: ^Context) {
 	SetGraphicsPipelineColorAttachmentFormat(&pipelineConfig, drawImage.format)
 	SetGraphicsPipelineDepthFormat(&pipelineConfig, depthImage.format)
 
-	meshPipeline = BuildGraphicsPipeline(device, &pipelineConfig)
+	meshPipeline = BuildGraphicsPipeline(device.device, &pipelineConfig)
 }
 
 InitImgui :: proc(using ctx: ^Context) {
@@ -921,17 +487,17 @@ InitImgui :: proc(using ctx: ^Context) {
 		pPoolSizes    = &poolSizes[0],
 	}
 
-	check(vk.CreateDescriptorPool(device, &poolInfo, nil, &imguiPool))
+	check(vk.CreateDescriptorPool(device.device, &poolInfo, nil, &imguiPool))
 
 	im.CreateContext()
 
 	imgui_impl_glfw.InitForVulkan(window, true)
 
 	initInfo := imgui_impl_vulkan.InitInfo {
-		Instance              = instance,
-		PhysicalDevice        = gpu,
-		Device                = device,
-		Queue                 = queues[.Graphics],
+		Instance              = device.instance,
+		PhysicalDevice        = device.gpu,
+		Device                = device.device,
+		Queue                 = device.queues[.Graphics],
 		DescriptorPool        = imguiPool,
 		MinImageCount         = 3,
 		ImageCount            = 3,
@@ -944,7 +510,7 @@ InitImgui :: proc(using ctx: ^Context) {
 		proc "c" (function_name: cstring, user_data: rawptr) -> vk.ProcVoidFunction {
 			return vk.GetInstanceProcAddr((cast(^vk.Instance)user_data)^, function_name)
 		},
-		&instance,
+		&device.instance,
 	)
 
 	imgui_impl_vulkan.Init(&initInfo, 0)
@@ -953,12 +519,12 @@ InitImgui :: proc(using ctx: ^Context) {
 
 Draw :: proc(using ctx: ^Context) {
 	frame := frames[frameNumber % FRAME_OVERLAP]
-	check(vk.WaitForFences(device, 1, &frame.renderFence, true, 1000000000))
-	check(vk.ResetFences(device, 1, &frame.renderFence))
+	check(vk.WaitForFences(device.device, 1, &frame.renderFence, true, 1000000000))
+	check(vk.ResetFences(device.device, 1, &frame.renderFence))
 
 	swapchainImageIndex: u32
 	res := vk.AcquireNextImageKHR(
-		device,
+		device.device,
 		swapchain.swapchain,
 		1000000000,
 		frame.swapchainSemaphore,
@@ -968,7 +534,7 @@ Draw :: proc(using ctx: ^Context) {
 
 	if res == .ERROR_OUT_OF_DATE_KHR {
 		resizeRequested = true
-        return
+		return
 	}
 
 	drawExtent = {drawImage.extent.width, drawImage.extent.height}
@@ -1026,7 +592,7 @@ Draw :: proc(using ctx: ^Context) {
 	signalInfo := SemaphoreSubmitInfo({.ALL_GRAPHICS}, frame.renderSemaphore)
 	submit := SubmitInfo(&cmdInfo, &waitInfo, &signalInfo)
 
-	check(vk.QueueSubmit2(queues[.Graphics], 1, &submit, frame.renderFence))
+	check(vk.QueueSubmit2(device.queues[.Graphics], 1, &submit, frame.renderFence))
 
 	presentInfo := vk.PresentInfoKHR {
 		sType              = .PRESENT_INFO_KHR,
@@ -1037,11 +603,11 @@ Draw :: proc(using ctx: ^Context) {
 		pImageIndices      = &swapchainImageIndex,
 	}
 
-	res = vk.QueuePresentKHR(queues[.Graphics], &presentInfo)
+	res = vk.QueuePresentKHR(device.queues[.Graphics], &presentInfo)
 
 	if res == .ERROR_OUT_OF_DATE_KHR {
 		resizeRequested = true
-        return
+		return
 	}
 
 	frameNumber += 1
@@ -1177,33 +743,14 @@ DrawImgui :: proc(using ctx: ^Context, cmd: vk.CommandBuffer, targetImageView: v
 	vk.CmdEndRendering(cmd)
 }
 
-DestroySwapchain :: proc(using ctx: ^Context) {
-	vk.DestroyDescriptorSetLayout(device, drawImageDescriptorLayout, nil)
-	vk.DestroyDescriptorPool(device, descriptorPool, nil)
+ImmediateSubmit :: proc(
+	using ctx: ^ImmediateContext,
+	fn: proc(_: ^ImmediateContext, _: vk.CommandBuffer),
+) {
+	check(vk.ResetFences(device.device, 1, &fence))
+	check(vk.ResetCommandBuffer(commandBuffer, vk.CommandBufferResetFlags{}))
 
-	vk.DestroyImageView(device, depthImage.imageView, nil)
-	vma.DestroyImage(allocator, depthImage.image, depthImage.allocation)
-	vk.DestroyImageView(device, drawImage.imageView, nil)
-	vma.DestroyImage(allocator, drawImage.image, drawImage.allocation)
-
-	for view in swapchain.imageViews {
-		vk.DestroyImageView(device, view, nil)
-	}
-
-	delete(swapchain.imageViews)
-	delete(swapchain.images)
-
-	vk.DestroySwapchainKHR(device, swapchain.swapchain, nil)
-
-	delete(swapchainSupport.formats)
-	delete(swapchainSupport.presentModes)
-}
-
-ImmediateSubmit :: proc(using ctx: ^Context, fn: proc(ctx: ^Context, cmd: vk.CommandBuffer)) {
-	check(vk.ResetFences(device, 1, &immFence))
-	check(vk.ResetCommandBuffer(immCommandBuffer, vk.CommandBufferResetFlags{}))
-
-	cmd := immCommandBuffer
+	cmd := commandBuffer
 
 	cmdBeginInfo := vk.CommandBufferBeginInfo {
 		sType = .COMMAND_BUFFER_BEGIN_INFO,
@@ -1219,18 +766,22 @@ ImmediateSubmit :: proc(using ctx: ^Context, fn: proc(ctx: ^Context, cmd: vk.Com
 	cmdInfo := CommandBufferSubmitInfo(cmd)
 	submit := SubmitInfo(&cmdInfo, nil, nil)
 
-	check(vk.QueueSubmit2(queues[.Graphics], 1, &submit, immFence))
-	check(vk.WaitForFences(device, 1, &immFence, true, 9999999999))
+	check(vk.QueueSubmit2(device.queues[.Graphics], 1, &submit, fence))
+	check(vk.WaitForFences(device.device, 1, &fence, true, 9999999999))
 }
 
-UploadMesh :: proc(using ctx: ^Context, indices: []u32, vertices: []Vertex) -> GpuMeshBuffers {
+UploadMesh :: proc(
+	using ctx: ^ImmediateContext,
+	indices: []u32,
+	vertices: []Vertex,
+) -> GpuMeshBuffers {
 	vertexBufferSize := u64(len(vertices) * size_of(Vertex))
 	indexBufferSize := u64(len(indices) * size_of(u32))
 
 	newSurface: GpuMeshBuffers
 
 	newSurface.vertexBuffer = CreateBuffer(
-		allocator,
+		device.allocator,
 		vertexBufferSize,
 		{.STORAGE_BUFFER, .TRANSFER_DST, .SHADER_DEVICE_ADDRESS},
 		.GPU_ONLY,
@@ -1241,17 +792,17 @@ UploadMesh :: proc(using ctx: ^Context, indices: []u32, vertices: []Vertex) -> G
 		buffer = newSurface.vertexBuffer.buffer,
 	}
 
-	newSurface.vertexBufferAddress = vk.GetBufferDeviceAddress(device, &deviceAddressInfo)
+	newSurface.vertexBufferAddress = vk.GetBufferDeviceAddress(device.device, &deviceAddressInfo)
 
 	newSurface.indexBuffer = CreateBuffer(
-		allocator,
+		device.allocator,
 		indexBufferSize,
 		{.INDEX_BUFFER, .TRANSFER_DST},
 		.GPU_ONLY,
 	)
 
 	stagingBuffer := CreateBuffer(
-		allocator,
+		device.allocator,
 		vertexBufferSize + indexBufferSize,
 		{.TRANSFER_SRC},
 		.CPU_ONLY,
@@ -1284,7 +835,7 @@ UploadMesh :: proc(using ctx: ^Context, indices: []u32, vertices: []Vertex) -> G
 
 	context.user_ptr = &tempData
 
-	submitFn := proc(ctx: ^Context, cmd: vk.CommandBuffer) {
+	submitFn := proc(ctx: ^ImmediateContext, cmd: vk.CommandBuffer) {
 		data := (cast(^TempData)context.user_ptr)^
 		vertexCopy := vk.BufferCopy {
 			dstOffset = 0,
@@ -1303,10 +854,163 @@ UploadMesh :: proc(using ctx: ^Context, indices: []u32, vertices: []Vertex) -> G
 
 	ImmediateSubmit(ctx, submitFn)
 
-	DestroyBuffer(allocator, stagingBuffer)
+	DestroyBuffer(device.allocator, stagingBuffer)
 
 	return newSurface
 }
 
 InitDefaultData :: proc(using ctx: ^Context) {
+}
+
+DestroyDrawImage :: proc(using ctx: ^Context) {
+	// DestroyFramebuffer
+	DestroyImage(device, depthImage)
+	DestroyImage(device, drawImage)
+}
+
+DestroyDrawImageDescriptors :: proc(using ctx: ^Context) {
+	vk.DestroyDescriptorSetLayout(device.device, drawImageDescriptorLayout, nil)
+}
+
+ResizeDrawImage :: proc(using ctx: ^Context) {
+	DestroyDrawImage(ctx)
+	InitDrawImage(ctx)
+
+	DestroyDrawImageDescriptors(ctx)
+	InitDrawImageDescriptors(ctx)
+}
+
+InitDrawImage :: proc(using ctx: ^Context) {
+	// TODO: Store the window extents
+	drawImageExtent := vk.Extent3D{swapchain.extent.width, swapchain.extent.height, 1}
+
+	drawImage.format = .R16G16B16A16_SFLOAT
+	drawImage.extent = drawImageExtent
+
+	drawImageUsage := vk.ImageUsageFlags{.TRANSFER_SRC, .TRANSFER_DST, .STORAGE, .COLOR_ATTACHMENT}
+
+	drawImageInfo := vk.ImageCreateInfo {
+		sType       = .IMAGE_CREATE_INFO,
+		imageType   = .D2,
+		format      = drawImage.format,
+		extent      = drawImage.extent,
+		mipLevels   = 1,
+		arrayLayers = 1,
+		samples     = {._1},
+		tiling      = .OPTIMAL,
+		usage       = drawImageUsage,
+	}
+
+	drawImageAllocInfo := vma.AllocationCreateInfo {
+		usage         = .GPU_ONLY,
+		requiredFlags = {.DEVICE_LOCAL},
+	}
+
+	check(
+		vma.CreateImage(
+			device.allocator,
+			&drawImageInfo,
+			&drawImageAllocInfo,
+			&drawImage.image,
+			&drawImage.allocation,
+			nil,
+		),
+	)
+
+	drawImageViewInfo := vk.ImageViewCreateInfo {
+		sType = .IMAGE_VIEW_CREATE_INFO,
+		viewType = .D2,
+		image = drawImage.image,
+		format = drawImage.format,
+		subresourceRange = {
+			baseMipLevel = 0,
+			levelCount = 1,
+			baseArrayLayer = 0,
+			layerCount = 1,
+			aspectMask = {.COLOR},
+		},
+	}
+
+	check(vk.CreateImageView(device.device, &drawImageViewInfo, nil, &drawImage.imageView))
+
+	depthImage.format = .D32_SFLOAT
+	depthImage.extent = drawImageExtent
+
+	depthImageUsage := vk.ImageUsageFlags{.DEPTH_STENCIL_ATTACHMENT}
+
+	depthImageInfo := vk.ImageCreateInfo {
+		sType       = .IMAGE_CREATE_INFO,
+		imageType   = .D2,
+		format      = depthImage.format,
+		extent      = depthImage.extent,
+		mipLevels   = 1,
+		arrayLayers = 1,
+		samples     = {._1},
+		tiling      = .OPTIMAL,
+		usage       = depthImageUsage,
+	}
+
+	depthImageAllocInfo := vma.AllocationCreateInfo {
+		usage         = .GPU_ONLY,
+		requiredFlags = {.DEVICE_LOCAL},
+	}
+
+	check(
+		vma.CreateImage(
+			device.allocator,
+			&depthImageInfo,
+			&depthImageAllocInfo,
+			&depthImage.image,
+			&depthImage.allocation,
+			nil,
+		),
+	)
+
+	depthImageViewInfo := vk.ImageViewCreateInfo {
+		sType = .IMAGE_VIEW_CREATE_INFO,
+		viewType = .D2,
+		image = depthImage.image,
+		format = depthImage.format,
+		subresourceRange = {
+			baseMipLevel = 0,
+			levelCount = 1,
+			baseArrayLayer = 0,
+			layerCount = 1,
+			aspectMask = {.DEPTH},
+		},
+	}
+
+	check(vk.CreateImageView(device.device, &depthImageViewInfo, nil, &depthImage.imageView))
+}
+
+InitImmediateContext :: proc(using ctx: ^Context) {
+	immedateContext.device = &device
+
+	fenceInfo := vk.FenceCreateInfo {
+		sType = .FENCE_CREATE_INFO,
+		flags = {.SIGNALED},
+	}
+	check(vk.CreateFence(device.device, &fenceInfo, nil, &immedateContext.fence))
+
+	cmdPoolInfo := vk.CommandPoolCreateInfo {
+		sType            = .COMMAND_POOL_CREATE_INFO,
+		flags            = {.RESET_COMMAND_BUFFER},
+		queueFamilyIndex = u32(device.queueIndices[.Graphics]),
+	}
+
+	check(vk.CreateCommandPool(device.device, &cmdPoolInfo, nil, &immedateContext.commandPool))
+
+	cmdAllocInfo := vk.CommandBufferAllocateInfo {
+		sType              = .COMMAND_BUFFER_ALLOCATE_INFO,
+		commandPool        = immedateContext.commandPool,
+		commandBufferCount = 1,
+		level              = .PRIMARY,
+	}
+
+	check(vk.AllocateCommandBuffers(device.device, &cmdAllocInfo, &immedateContext.commandBuffer))
+}
+
+DestroyImmediateContext :: proc(ctx: ImmediateContext) {
+	vk.DestroyCommandPool(ctx.device.device, ctx.commandPool, nil)
+	vk.DestroyFence(ctx.device.device, ctx.fence, nil)
 }

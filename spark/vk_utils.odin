@@ -25,7 +25,6 @@ QueueFamily :: enum {
 	Present,
 }
 
-
 SemaphoreSubmitInfo :: proc(
 	stageMask: vk.PipelineStageFlags2,
 	semaphore: vk.Semaphore,
@@ -227,6 +226,12 @@ CreateBuffer :: proc(
 DestroyBuffer :: proc(allocator: vma.Allocator, buffer: Buffer)
 {
     vma.DestroyBuffer(allocator, buffer.buffer, buffer.allocation)
+}
+
+DestroyImage :: proc(device: Device, image: Image)
+{
+	vk.DestroyImageView(device.device, image.imageView, nil)
+	vma.DestroyImage(device.allocator, image.image, image.allocation)
 }
 
 DebugCallback :: proc "system" (

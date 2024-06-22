@@ -31,7 +31,7 @@ MeshAsset :: struct {
 	meshBuffers: GpuMeshBuffers,
 }
 
-LoadGltf :: proc(ctx: ^Context, filepath: string) -> ([]MeshAsset, bool) {
+LoadGltf :: proc(ctx: ^ImmediateContext, filepath: string) -> ([]MeshAsset, bool) {
 	data, error := gltf.load_from_file(filepath)
 
 	if error != nil {
@@ -140,10 +140,10 @@ LoadGltf :: proc(ctx: ^Context, filepath: string) -> ([]MeshAsset, bool) {
 	return meshes[:], true
 }
 
-DeleteMeshAsset::proc(ctx: ^Context, meshAsset: MeshAsset)
+DeleteMeshAsset::proc(device: Device, meshAsset: MeshAsset)
 {
-    DestroyBuffer(ctx.allocator, meshAsset.meshBuffers.vertexBuffer)
-    DestroyBuffer(ctx.allocator, meshAsset.meshBuffers.indexBuffer)
+    DestroyBuffer(device.allocator, meshAsset.meshBuffers.vertexBuffer)
+    DestroyBuffer(device.allocator, meshAsset.meshBuffers.indexBuffer)
 
     delete(meshAsset.surfaces)
 }
