@@ -131,67 +131,8 @@ BlitImage :: proc(
 	vk.CmdBlitImage2(cmd, &blitInfo)
 }
 
-BuildDescriptorLayout :: proc(
-	device: vk.Device,
-	bindings: []vk.DescriptorSetLayoutBinding,
-	shaderStages: vk.ShaderStageFlags,
-	pNext: rawptr,
-	flags: vk.DescriptorSetLayoutCreateFlags,
-) -> vk.DescriptorSetLayout {
-	for &binding in bindings {
-		// FIXME: This call might not work
-		binding.stageFlags |= shaderStages
-	}
-
-	info := vk.DescriptorSetLayoutCreateInfo {
-		sType        = .DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-		flags        = flags,
-		bindingCount = u32(len(bindings)),
-		pBindings    = &bindings[0],
-	}
-
-	set: vk.DescriptorSetLayout
-	check(vk.CreateDescriptorSetLayout(device, &info, nil, &set))
-
-	return set
-}
-
-DescriptorPoolSizeRatio :: struct {
-	type:  vk.DescriptorType,
-	ratio: f32,
-}
-
-CreateDescriptorPool :: proc(
-	device: vk.Device,
-	maxSets: u32,
-	poolRatios: []DescriptorPoolSizeRatio,
-) -> vk.DescriptorPool {
-	poolSizes := make([dynamic]vk.DescriptorPoolSize, context.temp_allocator)
-	for ratio in poolRatios {
-		append(
-			&poolSizes,
-			vk.DescriptorPoolSize {
-				type = ratio.type,
-				descriptorCount = u32(ratio.ratio * f32(maxSets)),
-			},
-		)
-	}
-
-	poolInfo := vk.DescriptorPoolCreateInfo {
-		sType         = .DESCRIPTOR_POOL_CREATE_INFO,
-		maxSets       = maxSets,
-		poolSizeCount = u32(len(poolSizes)),
-		pPoolSizes    = &poolSizes[0],
-	}
-
-	pool: vk.DescriptorPool
-	check(vk.CreateDescriptorPool(device, &poolInfo, nil, &pool))
-
-	return pool
-}
-
 CreateBuffer :: proc(
-	allocator: vma.Allocator,
+	device: Device,
 	allocSize: u64,
 	usage: vk.BufferUsageFlags,
 	memoryUsage: vma.MemoryUsage,
@@ -207,11 +148,10 @@ CreateBuffer :: proc(
 		flags = {.MAPPED},
 	}
 
-	buffer: Buffer
-
+	buffer : Buffer
 	check(
 		vma.CreateBuffer(
-			allocator,
+			device.allocator,
 			&bufferInfo,
 			&allocInfo,
 			&buffer.buffer,
@@ -223,13 +163,11 @@ CreateBuffer :: proc(
 	return buffer
 }
 
-DestroyBuffer :: proc(allocator: vma.Allocator, buffer: Buffer)
-{
-    vma.DestroyBuffer(allocator, buffer.buffer, buffer.allocation)
+DestroyBuffer :: proc(device: Device, buffer: Buffer) {
+	vma.DestroyBuffer(device.allocator, buffer.buffer, buffer.allocation)
 }
 
-DestroyImage :: proc(device: Device, image: Image)
-{
+DestroyImage :: proc(device: Device, image: Image) {
 	vk.DestroyImageView(device.device, image.imageView, nil)
 	vma.DestroyImage(device.allocator, image.image, image.allocation)
 }

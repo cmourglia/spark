@@ -142,8 +142,8 @@ LoadGltf :: proc(ctx: ^ImmediateContext, filepath: string) -> ([]MeshAsset, bool
 
 DeleteMeshAsset::proc(device: Device, meshAsset: MeshAsset)
 {
-    DestroyBuffer(device.allocator, meshAsset.meshBuffers.vertexBuffer)
-    DestroyBuffer(device.allocator, meshAsset.meshBuffers.indexBuffer)
+    DestroyBuffer(device, meshAsset.meshBuffers.vertexBuffer)
+    DestroyBuffer(device, meshAsset.meshBuffers.indexBuffer)
 
     delete(meshAsset.surfaces)
 }

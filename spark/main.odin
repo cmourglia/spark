@@ -16,26 +16,28 @@ import glfw "vendor:glfw"
 import vk "vendor:vulkan"
 
 Context :: struct {
-	window:                    glfw.WindowHandle,
-	device:                    Device,
-	swapchain:                 Swapchain,
-	frames:                    [FRAME_OVERLAP]FrameData,
-	drawImage:                 Image,
-	depthImage:                Image,
-	drawExtent:                vk.Extent2D,
-	drawImageDescriptorPool:   vk.DescriptorPool,
-	drawImageDescriptors:      vk.DescriptorSet,
-	drawImageDescriptorLayout: vk.DescriptorSetLayout,
-	immedateContext:           ImmediateContext,
-	imguiPool:                 vk.DescriptorPool,
-	frameNumber:               int,
-	gradientPipelineLayout:    vk.PipelineLayout,
-	computeEffects:            [dynamic]ComputeEffect,
-	currentEffect:             i32,
-	meshPipelineLayout:        vk.PipelineLayout,
-	meshPipeline:              vk.Pipeline,
-	testMeshes:                []MeshAsset,
-	resizeRequested:           bool,
+	window:                        glfw.WindowHandle,
+	device:                        Device,
+	swapchain:                     Swapchain,
+	frames:                        [FRAME_OVERLAP]FrameData,
+	drawImage:                     Image,
+	depthImage:                    Image,
+	drawExtent:                    vk.Extent2D,
+	drawImageDescriptorPool:       vk.DescriptorPool,
+	drawImageDescriptors:          vk.DescriptorSet,
+	drawImageDescriptorLayout:     vk.DescriptorSetLayout,
+	immedateContext:               ImmediateContext,
+	imguiPool:                     vk.DescriptorPool,
+	frameNumber:                   int,
+	gradientPipelineLayout:        vk.PipelineLayout,
+	computeEffects:                [dynamic]ComputeEffect,
+	currentEffect:                 i32,
+	meshPipelineLayout:            vk.PipelineLayout,
+	meshPipeline:                  vk.Pipeline,
+	testMeshes:                    []MeshAsset,
+	sceneData:                     GpuSceneData,
+	gpuScenesDataDescriptorLayout: vk.DescriptorSetLayout,
+	resizeRequested:               bool,
 }
 
 ImmediateContext :: struct {
@@ -45,12 +47,19 @@ ImmediateContext :: struct {
 	commandPool:   vk.CommandPool,
 }
 
+DeletionQueue :: struct {
+	buffers: [dynamic]Buffer,
+	images:  [dynamic]Image,
+}
+
 FrameData :: struct {
-	commandPool:        vk.CommandPool,
-	commandBuffer:      vk.CommandBuffer,
 	swapchainSemaphore: vk.Semaphore,
 	renderSemaphore:    vk.Semaphore,
 	renderFence:        vk.Fence,
+	commandPool:        vk.CommandPool,
+	commandBuffer:      vk.CommandBuffer,
+	frameDescriptors:   DescriptorAllocator,
+	deletionQueue:      DeletionQueue,
 }
 
 ComputePushConstants :: struct {
@@ -70,6 +79,15 @@ ComputeEffect :: struct {
 GpuPushConstants :: struct {
 	worldMatrix:  glm.mat4,
 	vertexBuffer: vk.DeviceAddress,
+}
+
+GpuSceneData :: struct {
+	view:              glm.mat4,
+	proj:              glm.mat4,
+	viewProj:          glm.mat4,
+	ambientColor:      glm.vec4,
+	sunlightDirection: glm.vec4,
+	sunlightColor:     glm.vec4,
 }
 
 DEVICE_EXTENSIONS := [?]cstring{"VK_KHR_swapchain"}
@@ -123,6 +141,7 @@ InitVulkan :: proc(using ctx: ^Context) {
 	InitDrawImage(ctx)
 	InitDrawImageDescriptors(ctx)
 
+	InitDescriptors(ctx)
 	InitCommands(ctx)
 	InitSyncStructures(ctx)
 	InitPipelines(ctx)
@@ -164,12 +183,16 @@ DeinitVulkan :: proc(using ctx: ^Context) {
 	vk.DestroyPipelineLayout(device.device, meshPipelineLayout, nil)
 	vk.DestroyPipelineLayout(device.device, gradientPipelineLayout, nil)
 
-	for frame in frames {
+	for &frame in frames {
 		vk.DestroyFence(device.device, frame.renderFence, nil)
 		vk.DestroySemaphore(device.device, frame.renderSemaphore, nil)
 		vk.DestroySemaphore(device.device, frame.swapchainSemaphore, nil)
 		vk.DestroyCommandPool(device.device, frame.commandPool, nil)
+		DestroyDeletionQueue(device, &frame.deletionQueue)
+		DestroyDescriptorAllocator(frame.frameDescriptors)
 	}
+
+	vk.DestroyDescriptorSetLayout(device.device, gpuScenesDataDescriptorLayout, nil)
 
 	vk.DestroyDescriptorPool(device.device, drawImageDescriptorPool, nil)
 
@@ -241,6 +264,31 @@ ChooseSwapchainPresentMode :: proc(presentModes: []vk.PresentModeKHR) -> vk.Pres
 	return .FIFO
 }
 
+InitDescriptors :: proc(using ctx: ^Context) {
+	for &frame in frames {
+		frameSizes := []DescriptorPoolSizeRatio {
+			{.STORAGE_IMAGE, 3},
+			{.STORAGE_BUFFER, 3},
+			{.UNIFORM_BUFFER, 3},
+			{.COMBINED_IMAGE_SAMPLER, 4},
+		}
+
+		frame.frameDescriptors = CreateDescriptorAllocator(device, 1000, frameSizes)
+	}
+
+	bindings := [?]vk.DescriptorSetLayoutBinding {
+		{binding = 0, descriptorType = .UNIFORM_BUFFER, descriptorCount = 1},
+	}
+
+	gpuScenesDataDescriptorLayout = BuildDescriptorLayout(
+		device,
+		bindings[:],
+		{.VERTEX, .FRAGMENT},
+		nil,
+		{},
+	)
+}
+
 InitCommands :: proc(using ctx: ^Context) {
 	cmdPoolInfo := vk.CommandPoolCreateInfo {
 		sType            = .COMMAND_POOL_CREATE_INFO,
@@ -284,7 +332,7 @@ InitSyncStructures :: proc(using ctx: ^Context) {
 InitDrawImageDescriptors :: proc(using ctx: ^Context) {
 	if (drawImageDescriptorPool == vk.DescriptorPool{}) {
 		sizes := [?]DescriptorPoolSizeRatio{{.STORAGE_IMAGE, 1}}
-		drawImageDescriptorPool = CreateDescriptorPool(device.device, 2, sizes[:])
+		drawImageDescriptorPool = CreateDescriptorPool(device, 2, sizes[:])
 	} else {
 		vk.ResetDescriptorPool(device.device, drawImageDescriptorPool, {})
 	}
@@ -293,13 +341,7 @@ InitDrawImageDescriptors :: proc(using ctx: ^Context) {
 		{binding = 0, descriptorType = .STORAGE_IMAGE, descriptorCount = 1},
 	}
 
-	drawImageDescriptorLayout = BuildDescriptorLayout(
-		device.device,
-		bindings[:],
-		{.COMPUTE},
-		nil,
-		vk.DescriptorSetLayoutCreateFlags{},
-	)
+	drawImageDescriptorLayout = BuildDescriptorLayout(device, bindings[:], {.COMPUTE}, nil, {})
 
 	allocInfo := vk.DescriptorSetAllocateInfo {
 		sType              = .DESCRIPTOR_SET_ALLOCATE_INFO,
@@ -310,21 +352,10 @@ InitDrawImageDescriptors :: proc(using ctx: ^Context) {
 
 	check(vk.AllocateDescriptorSets(device.device, &allocInfo, &drawImageDescriptors))
 
-	imgInfo := vk.DescriptorImageInfo {
-		imageLayout = .GENERAL,
-		imageView   = drawImage.imageView,
-	}
-
-	drawImageWrite := vk.WriteDescriptorSet {
-		sType           = .WRITE_DESCRIPTOR_SET,
-		dstBinding      = 0,
-		dstSet          = drawImageDescriptors,
-		descriptorCount = 1,
-		descriptorType  = .STORAGE_IMAGE,
-		pImageInfo      = &imgInfo,
-	}
-
-	vk.UpdateDescriptorSets(device.device, 1, &drawImageWrite, 0, nil)
+	writer: DescriptorWriter
+	WriteImageDescriptor(&writer, 0, drawImage, {}, .GENERAL, .STORAGE_IMAGE)
+	UpdateDescriptorSet(&writer, device, drawImageDescriptors)
+	ClearDescriptorWriter(&writer)
 }
 
 InitPipelines :: proc(using ctx: ^Context) {
@@ -518,8 +549,13 @@ InitImgui :: proc(using ctx: ^Context) {
 }
 
 Draw :: proc(using ctx: ^Context) {
-	frame := frames[frameNumber % FRAME_OVERLAP]
+	frame := &frames[frameNumber % FRAME_OVERLAP]
 	check(vk.WaitForFences(device.device, 1, &frame.renderFence, true, 1000000000))
+
+	FlushDeletionQueue(device, &frame.deletionQueue)
+
+	ClearDescriptorAllocatorPools(&frame.frameDescriptors)
+
 	check(vk.ResetFences(device.device, 1, &frame.renderFence))
 
 	swapchainImageIndex: u32
@@ -632,6 +668,38 @@ DrawBackground :: proc(cmd: vk.CommandBuffer, using ctx: ^Context) {
 }
 
 DrawGeometry :: proc(cmd: vk.CommandBuffer, using ctx: ^Context) {
+	frame := &frames[frameNumber % FRAME_OVERLAP]
+
+	// TODO: Move this inside the frame data, no need to destroy / create it every frame
+	gpuSceneDataBuffer := CreateBuffer(
+		device,
+		size_of(GpuSceneData),
+		{.UNIFORM_BUFFER},
+		.CPU_TO_GPU,
+	)
+
+	append(&frame.deletionQueue.buffers, gpuSceneDataBuffer)
+
+	sceneUniformData := cast(^GpuSceneData)gpuSceneDataBuffer.allocationInfo.pMappedData
+	sceneUniformData^ = sceneData
+
+	globalDescriptor := AllocateDescriptorSet(
+		&frame.frameDescriptors,
+		gpuScenesDataDescriptorLayout,
+	)
+
+	writer: DescriptorWriter
+	WriteBufferDescriptor(
+		&writer,
+		0,
+		gpuSceneDataBuffer,
+		size_of(GpuSceneData),
+		0,
+		.UNIFORM_BUFFER,
+	)
+	UpdateDescriptorSet(&writer, device, globalDescriptor)
+    ClearDescriptorWriter(&writer)
+
 	colorAttachment := vk.RenderingAttachmentInfo {
 		sType       = .RENDERING_ATTACHMENT_INFO,
 		imageView   = drawImage.imageView,
@@ -781,7 +849,7 @@ UploadMesh :: proc(
 	newSurface: GpuMeshBuffers
 
 	newSurface.vertexBuffer = CreateBuffer(
-		device.allocator,
+		device^,
 		vertexBufferSize,
 		{.STORAGE_BUFFER, .TRANSFER_DST, .SHADER_DEVICE_ADDRESS},
 		.GPU_ONLY,
@@ -795,14 +863,14 @@ UploadMesh :: proc(
 	newSurface.vertexBufferAddress = vk.GetBufferDeviceAddress(device.device, &deviceAddressInfo)
 
 	newSurface.indexBuffer = CreateBuffer(
-		device.allocator,
+		device^,
 		indexBufferSize,
 		{.INDEX_BUFFER, .TRANSFER_DST},
 		.GPU_ONLY,
 	)
 
 	stagingBuffer := CreateBuffer(
-		device.allocator,
+		device^,
 		vertexBufferSize + indexBufferSize,
 		{.TRANSFER_SRC},
 		.CPU_ONLY,
@@ -854,7 +922,7 @@ UploadMesh :: proc(
 
 	ImmediateSubmit(ctx, submitFn)
 
-	DestroyBuffer(device.allocator, stagingBuffer)
+	DestroyBuffer(device^, stagingBuffer)
 
 	return newSurface
 }
@@ -1013,4 +1081,22 @@ InitImmediateContext :: proc(using ctx: ^Context) {
 DestroyImmediateContext :: proc(ctx: ImmediateContext) {
 	vk.DestroyCommandPool(ctx.device.device, ctx.commandPool, nil)
 	vk.DestroyFence(ctx.device.device, ctx.fence, nil)
+}
+
+FlushDeletionQueue :: proc(device: Device, using queue: ^DeletionQueue) {
+	for buffer in buffers {
+		DestroyBuffer(device, buffer)
+	}
+	clear(&buffers)
+
+	for image in images {
+		DestroyImage(device, image)
+	}
+	clear(&images)
+}
+
+DestroyDeletionQueue :: proc(device: Device, using queue: ^DeletionQueue) {
+	FlushDeletionQueue(device, queue)
+	delete(buffers)
+	delete(images)
 }
