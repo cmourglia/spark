@@ -9,32 +9,32 @@ import vk "vendor:vulkan"
 
 Image :: struct {
 	image:      vk.Image,
-	imageView:  vk.ImageView,
+	image_view: vk.ImageView,
 	allocation: vma.Allocation,
 	extent:     vk.Extent3D,
 	format:     vk.Format,
 }
 
 Buffer :: struct {
-	buffer:         vk.Buffer,
-	allocation:     vma.Allocation,
-	allocationInfo: vma.AllocationInfo,
+	buffer:          vk.Buffer,
+	allocation:      vma.Allocation,
+	allocation_info: vma.AllocationInfo,
 }
 
-QueueFamily :: enum {
+Queue_Family :: enum {
 	Graphics,
 	Compute,
 	Present,
 }
 
-SemaphoreSubmitInfo :: proc(
-	stageMask: vk.PipelineStageFlags2,
+semaphore_submit_info :: proc(
+	stage_mask: vk.PipelineStageFlags2,
 	semaphore: vk.Semaphore,
 ) -> vk.SemaphoreSubmitInfo {
 	info := vk.SemaphoreSubmitInfo {
 		sType       = .SEMAPHORE_SUBMIT_INFO,
 		semaphore   = semaphore,
-		stageMask   = stageMask,
+		stageMask   = stage_mask,
 		deviceIndex = 0,
 		value       = 1,
 	}
@@ -42,7 +42,7 @@ SemaphoreSubmitInfo :: proc(
 	return info
 }
 
-CommandBufferSubmitInfo :: proc(cmd: vk.CommandBuffer) -> vk.CommandBufferSubmitInfo {
+command_buffer_submit_info :: proc(cmd: vk.CommandBuffer) -> vk.CommandBufferSubmitInfo {
 	info := vk.CommandBufferSubmitInfo {
 		sType         = .COMMAND_BUFFER_SUBMIT_INFO,
 		commandBuffer = cmd,
@@ -52,7 +52,7 @@ CommandBufferSubmitInfo :: proc(cmd: vk.CommandBuffer) -> vk.CommandBufferSubmit
 	return info
 }
 
-SubmitInfo :: proc(
+submit_info :: proc(
 	cmd: ^vk.CommandBufferSubmitInfo,
 	wait_semaphore: ^vk.SemaphoreSubmitInfo,
 	signal_semaphore: ^vk.SemaphoreSubmitInfo,
@@ -70,7 +70,7 @@ SubmitInfo :: proc(
 	return info
 }
 
-TransitionImage :: proc(
+transition_image :: proc(
 	cmd: vk.CommandBuffer,
 	image: vk.Image,
 	old_layout, new_layout: vk.ImageLayout,
@@ -105,48 +105,48 @@ TransitionImage :: proc(
 	vk.CmdPipelineBarrier2(cmd, &dep_info)
 }
 
-BlitImage :: proc(
+blit_image :: proc(
 	cmd: vk.CommandBuffer,
-	srcImage, dstImage: vk.Image,
-	srcSize, dstSize: vk.Extent2D,
+	src_image, dst_image: vk.Image,
+	src_size, dst_size: vk.Extent2D,
 ) {
-	blitRegion := vk.ImageBlit2 {
+	blit_region := vk.ImageBlit2 {
 		sType = .IMAGE_BLIT_2,
 		srcSubresource = {aspectMask = {.COLOR}, baseArrayLayer = 0, layerCount = 1, mipLevel = 0},
 		dstSubresource = {aspectMask = {.COLOR}, baseArrayLayer = 0, layerCount = 1, mipLevel = 0},
 	}
 
-	blitRegion.srcOffsets[1] = {i32(srcSize.width), i32(srcSize.height), 1}
-	blitRegion.dstOffsets[1] = {i32(dstSize.width), i32(dstSize.height), 1}
+	blit_region.srcOffsets[1] = {i32(src_size.width), i32(src_size.height), 1}
+	blit_region.dstOffsets[1] = {i32(dst_size.width), i32(dst_size.height), 1}
 
-	blitInfo := vk.BlitImageInfo2 {
+	blit_info := vk.BlitImageInfo2 {
 		sType          = .BLIT_IMAGE_INFO_2,
-		srcImage       = srcImage,
+		srcImage       = src_image,
 		srcImageLayout = .TRANSFER_SRC_OPTIMAL,
-		dstImage       = dstImage,
+		dstImage       = dst_image,
 		dstImageLayout = .TRANSFER_DST_OPTIMAL,
 		filter         = .LINEAR,
 		regionCount    = 1,
-		pRegions       = &blitRegion,
+		pRegions       = &blit_region,
 	}
 
-	vk.CmdBlitImage2(cmd, &blitInfo)
+	vk.CmdBlitImage2(cmd, &blit_info)
 }
 
-CreateBuffer :: proc(
+create_buffer :: proc(
 	device: Device,
-	allocSize: u64,
+	alloc_size: u64,
 	usage: vk.BufferUsageFlags,
-	memoryUsage: vma.MemoryUsage,
+	memory_usage: vma.MemoryUsage,
 ) -> Buffer {
-	bufferInfo := vk.BufferCreateInfo {
+	buffer_info := vk.BufferCreateInfo {
 		sType = .BUFFER_CREATE_INFO,
-		size  = cast(vk.DeviceSize)allocSize,
+		size  = cast(vk.DeviceSize)alloc_size,
 		usage = usage,
 	}
 
-	allocInfo := vma.AllocationCreateInfo {
-		usage = memoryUsage,
+	alloc_info := vma.AllocationCreateInfo {
+		usage = memory_usage,
 		flags = {.MAPPED},
 	}
 
@@ -154,22 +154,22 @@ CreateBuffer :: proc(
 	check(
 		vma.CreateBuffer(
 			device.allocator,
-			&bufferInfo,
-			&allocInfo,
+			&buffer_info,
+			&alloc_info,
 			&buffer.buffer,
 			&buffer.allocation,
-			&buffer.allocationInfo,
+			&buffer.allocation_info,
 		),
 	)
 
 	return buffer
 }
 
-DestroyBuffer :: proc(device: Device, buffer: Buffer) {
+destroy_buffer :: proc(device: Device, buffer: Buffer) {
 	vma.DestroyBuffer(device.allocator, buffer.buffer, buffer.allocation)
 }
 
-CreateImage :: proc(
+create_image :: proc(
 	device: Device,
 	size: vk.Extent3D,
 	format: vk.Format,
@@ -181,7 +181,7 @@ CreateImage :: proc(
 		extent = size,
 	}
 
-	imageInfo := vk.ImageCreateInfo {
+	image_info := vk.ImageCreateInfo {
 		sType       = .IMAGE_CREATE_INFO,
 		format      = format,
 		usage       = usage,
@@ -194,11 +194,11 @@ CreateImage :: proc(
 	}
 
 	if mipmapped {
-		nbLevels := math.log2(f32(max(size.width, size.height)))
-		imageInfo.mipLevels = u32(math.floor(nbLevels)) + 1
+		nb_levels := math.log2(f32(max(size.width, size.height)))
+		image_info.mipLevels = u32(math.floor(nb_levels)) + 1
 	}
 
-	allocInfo := vma.AllocationCreateInfo {
+	alloc_info := vma.AllocationCreateInfo {
 		usage         = .GPU_ONLY,
 		requiredFlags = {.DEVICE_LOCAL},
 	}
@@ -206,75 +206,69 @@ CreateImage :: proc(
 	check(
 		vma.CreateImage(
 			device.allocator,
-			&imageInfo,
-			&allocInfo,
+			&image_info,
+			&alloc_info,
 			&image.image,
 			&image.allocation,
 			nil,
 		),
 	)
 
-	imageViewInfo := vk.ImageViewCreateInfo {
+	image_view_info := vk.ImageViewCreateInfo {
 		sType = .IMAGE_VIEW_CREATE_INFO,
 		viewType = .D2,
 		image = image.image,
 		format = format,
 		subresourceRange = {
 			baseMipLevel = 0,
-			levelCount = imageInfo.mipLevels,
+			levelCount = image_info.mipLevels,
 			baseArrayLayer = 0,
 			layerCount = 1,
 			aspectMask = {.DEPTH if format == .D32_SFLOAT else .COLOR},
 		},
 	}
 
-	check(vk.CreateImageView(device.device, &imageViewInfo, nil, &image.imageView))
+	check(vk.CreateImageView(device.device, &image_view_info, nil, &image.image_view))
 
 	return image
 }
 
-CreateImageWithData :: proc(
-	ctx: ^ImmediateContext,
+create_image_with_data :: proc(
+	ctx: ^Immediate_Context,
 	data: rawptr,
 	size: vk.Extent3D,
 	format: vk.Format,
 	usage: vk.ImageUsageFlags,
 	mipmapped: bool = false,
 ) -> Image {
-	dataSize := size.depth * size.width * size.height * 4
+	data_size := size.depth * size.width * size.height * 4
 	device := ctx.device^
-	uploadBuffer := CreateBuffer(device, u64(dataSize), {.TRANSFER_SRC}, .CPU_TO_GPU)
+	upload_buffer := create_buffer(device, u64(data_size), {.TRANSFER_SRC}, .CPU_TO_GPU)
 
-	mem.copy(uploadBuffer.allocationInfo.pMappedData, data, int(dataSize))
+	mem.copy(upload_buffer.allocation_info.pMappedData, data, int(data_size))
 
-	image := CreateImage(
-		device,
-		size,
-		format,
-		usage | {.TRANSFER_DST | .TRANSFER_SRC},
-		mipmapped,
-	)
+	image := create_image(device, size, format, usage | {.TRANSFER_DST | .TRANSFER_SRC}, mipmapped)
 
-	TempData :: struct {
+	Temp_Data :: struct {
 		image:  vk.Image,
 		size:   vk.Extent3D,
 		buffer: vk.Buffer,
 	}
 
-	tempData := TempData {
+	temp_data := Temp_Data {
 		image  = image.image,
 		size   = size,
-		buffer = uploadBuffer.buffer,
+		buffer = upload_buffer.buffer,
 	}
 
-	context.user_ptr = &tempData
+	context.user_ptr = &temp_data
 
-	submitFn := proc(ctx: ^ImmediateContext, cmd: vk.CommandBuffer) {
-		data := (cast(^TempData)context.user_ptr)^
+	submit_fn := proc(ctx: ^Immediate_Context, cmd: vk.CommandBuffer) {
+		data := (cast(^Temp_Data)context.user_ptr)^
 
-		TransitionImage(cmd, data.image, .UNDEFINED, .TRANSFER_DST_OPTIMAL)
+		transition_image(cmd, data.image, .UNDEFINED, .TRANSFER_DST_OPTIMAL)
 
-		copyRegion := vk.BufferImageCopy {
+		copy_region := vk.BufferImageCopy {
 			bufferOffset = 0,
 			bufferRowLength = 0,
 			bufferImageHeight = 0,
@@ -293,44 +287,44 @@ CreateImageWithData :: proc(
 			data.image,
 			.TRANSFER_DST_OPTIMAL,
 			1,
-			&copyRegion,
+			&copy_region,
 		)
 
-        TransitionImage(cmd, data.image, .TRANSFER_DST_OPTIMAL, .SHADER_READ_ONLY_OPTIMAL)
+		transition_image(cmd, data.image, .TRANSFER_DST_OPTIMAL, .SHADER_READ_ONLY_OPTIMAL)
 	}
 
-	ImmediateSubmit(ctx, submitFn)
+	immediate_submit(ctx, submit_fn)
 
-    DestroyBuffer(device, uploadBuffer)
+	destroy_buffer(device, upload_buffer)
 
 	return image
 }
 
-DestroyImage :: proc(device: Device, image: Image) {
-	vk.DestroyImageView(device.device, image.imageView, nil)
+destroy_image :: proc(device: Device, image: Image) {
+	vk.DestroyImageView(device.device, image.image_view, nil)
 	vma.DestroyImage(device.allocator, image.image, image.allocation)
 }
 
-DebugCallback :: proc "system" (
-	msgSeverity: vk.DebugUtilsMessageSeverityFlagsEXT,
-	msgType: vk.DebugUtilsMessageTypeFlagsEXT,
-	callbackData: ^vk.DebugUtilsMessengerCallbackDataEXT,
-	userData: rawptr,
+debug_callback :: proc "system" (
+	msg_severity: vk.DebugUtilsMessageSeverityFlagsEXT,
+	msg_type: vk.DebugUtilsMessageTypeFlagsEXT,
+	callback_data: ^vk.DebugUtilsMessengerCallbackDataEXT,
+	user_data: rawptr,
 ) -> b32 {
-	context = (cast(^runtime.Context)userData)^
+	context = (cast(^runtime.Context)user_data)^
 
 	level: log.Level
-	if .ERROR in msgSeverity {
+	if .ERROR in msg_severity {
 		level = .Error
-	} else if .WARNING in msgSeverity {
+	} else if .WARNING in msg_severity {
 		level = .Warning
-	} else if .INFO in msgSeverity {
+	} else if .INFO in msg_severity {
 		level = .Info
 	} else {
 		level = .Debug
 	}
 
-	log.logf(level, "vulkan[%v]: %s", msgType, callbackData.pMessage)
+	log.logf(level, "vulkan[%v]: %s", msg_type, callback_data.pMessage)
 
 	return false
 }

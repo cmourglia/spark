@@ -5,29 +5,29 @@ import "vendor:glfw"
 import vk "vendor:vulkan"
 
 Device :: struct {
-	window:         glfw.WindowHandle,
-	instance:       vk.Instance,
-	surface:        vk.SurfaceKHR,
-	gpu:            vk.PhysicalDevice,
-	device:         vk.Device,
-	queueIndices:   [QueueFamily]int,
-	queues:         [QueueFamily]vk.Queue,
-	allocator:      vma.Allocator,
-	debugMessenger: vk.DebugUtilsMessengerEXT,
+	window:          glfw.WindowHandle,
+	instance:        vk.Instance,
+	surface:         vk.SurfaceKHR,
+	gpu:             vk.PhysicalDevice,
+	device:          vk.Device,
+	queue_indices:   [Queue_Family]int,
+	queues:          [Queue_Family]vk.Queue,
+	allocator:       vma.Allocator,
+	debug_messenger: vk.DebugUtilsMessengerEXT,
 }
 
-InitDevice :: proc(window: glfw.WindowHandle) -> Device {
+init_device :: proc(window: glfw.WindowHandle) -> Device {
 	device: Device
 	device.window = window
 
-	CreateInstance(&device)
-	CreateSurface(&device)
-	PickPhysicalDevice(&device)
-	FindQueueFamilies(&device)
-	CreateDevice(&device)
+	create_instance(&device)
+	create_surface(&device)
+	pick_physical_device(&device)
+	find_queue_families(&device)
+	create_device(&device)
 
 	for &q, i in device.queues {
-		vk.GetDeviceQueue(device.device, u32(device.queueIndices[i]), 0, &q)
+		vk.GetDeviceQueue(device.device, u32(device.queue_indices[i]), 0, &q)
 	}
 
 	vulkan_functions := vma.create_vulkan_functions()
@@ -44,10 +44,10 @@ InitDevice :: proc(window: glfw.WindowHandle) -> Device {
 }
 
 @(private = "file")
-CreateInstance :: proc(device: ^Device) {
+create_instance :: proc(device: ^Device) {
 	vk.load_proc_addresses_global(rawptr(glfw.GetInstanceProcAddress))
 
-	appInfo := vk.ApplicationInfo {
+	app_info := vk.ApplicationInfo {
 		sType              = .APPLICATION_INFO,
 		pApplicationName   = "Spark",
 		applicationVersion = vk.MAKE_VERSION(1, 0, 0),
@@ -58,13 +58,13 @@ CreateInstance :: proc(device: ^Device) {
 
 	info := vk.InstanceCreateInfo {
 		sType            = .INSTANCE_CREATE_INFO,
-		pApplicationInfo = &appInfo,
+		pApplicationInfo = &app_info,
 	}
 
-	requiredExtensions := glfw.GetRequiredInstanceExtensions()
+	required_extensions := glfw.GetRequiredInstanceExtensions()
 	extensions := make([dynamic]cstring, context.temp_allocator)
 
-	for ext in requiredExtensions {
+	for ext in required_extensions {
 		append(&extensions, ext)
 	}
 
@@ -73,15 +73,15 @@ CreateInstance :: proc(device: ^Device) {
 		info.ppEnabledLayerNames = &VALIDATION_LAYERS[0]
 		append(&extensions, vk.EXT_DEBUG_UTILS_EXTENSION_NAME)
 
-		debugMessenger_info := vk.DebugUtilsMessengerCreateInfoEXT {
+		debug_messenger_info := vk.DebugUtilsMessengerCreateInfoEXT {
 			sType           = .DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
 			messageSeverity = {.VERBOSE | .INFO | .WARNING | .ERROR},
 			messageType     = {.GENERAL, .VALIDATION, .PERFORMANCE, .DEVICE_ADDRESS_BINDING},
-			pfnUserCallback = DebugCallback,
+			pfnUserCallback = debug_callback,
 			pUserData       = transmute(rawptr)&g_ctx,
 		}
 
-		info.pNext = &debugMessenger_info
+		info.pNext = &debug_messenger_info
 	}
 
 	info.enabledExtensionCount = u32(len(extensions))
@@ -95,19 +95,21 @@ CreateInstance :: proc(device: ^Device) {
 		check(
 			vk.CreateDebugUtilsMessengerEXT(
 				device.instance,
-				&debugMessenger_info,
+				&debug_messenger_info,
 				nil,
-				&device.debugMessenger,
+				&device.debug_messenger,
 			),
 		)
 	}
 }
 
-CreateSurface :: proc(device: ^Device) {
+@(private = "file")
+create_surface :: proc(device: ^Device) {
 	check(glfw.CreateWindowSurface(device.instance, device.window, nil, &device.surface))
 }
 
-PickPhysicalDevice :: proc(device: ^Device) {
+@(private = "file")
+pick_physical_device :: proc(device: ^Device) {
 	// TODO: Proper compat check
 	device_count: u32
 	vk.EnumeratePhysicalDevices(device.instance, &device_count, nil)
@@ -119,51 +121,53 @@ PickPhysicalDevice :: proc(device: ^Device) {
 	device.gpu = devices[0]
 }
 
-FindQueueFamilies :: proc(device: ^Device) {
-	queueCount: u32
-	vk.GetPhysicalDeviceQueueFamilyProperties(device.gpu, &queueCount, nil)
-	availableQueues := make([]vk.QueueFamilyProperties, queueCount, context.temp_allocator)
-	vk.GetPhysicalDeviceQueueFamilyProperties(device.gpu, &queueCount, raw_data(availableQueues))
+@(private = "file")
+find_queue_families :: proc(device: ^Device) {
+	queue_count: u32
+	vk.GetPhysicalDeviceQueueFamilyProperties(device.gpu, &queue_count, nil)
+	available_queues := make([]vk.QueueFamilyProperties, queue_count, context.temp_allocator)
+	vk.GetPhysicalDeviceQueueFamilyProperties(device.gpu, &queue_count, raw_data(available_queues))
 
-	for q, i in availableQueues {
-		if .GRAPHICS in q.queueFlags && device.queueIndices[.Graphics] == -1 {
-			device.queueIndices[.Graphics] = i
+	for q, i in available_queues {
+		if .GRAPHICS in q.queueFlags && device.queue_indices[.Graphics] == -1 {
+			device.queue_indices[.Graphics] = i
 		}
 
-		if .COMPUTE in q.queueFlags && device.queueIndices[.Compute] == -1 {
-			device.queueIndices[.Compute] = i
+		if .COMPUTE in q.queueFlags && device.queue_indices[.Compute] == -1 {
+			device.queue_indices[.Compute] = i
 		}
 
-		presentSupport: b32
-		vk.GetPhysicalDeviceSurfaceSupportKHR(device.gpu, u32(i), device.surface, &presentSupport)
-		if presentSupport && device.queueIndices[.Present] == -1 {
-			device.queueIndices[.Present] = i
+		present_support: b32
+		vk.GetPhysicalDeviceSurfaceSupportKHR(device.gpu, u32(i), device.surface, &present_support)
+		if present_support && device.queue_indices[.Present] == -1 {
+			device.queue_indices[.Present] = i
 		}
 
-		allFound := true
-		for qi in device.queueIndices {
+		all_found := true
+		for qi in device.queue_indices {
 			if qi == -1 {
-				allFound = false
+				all_found = false
 				break
 			}
 		}
 
-		if allFound {
+		if all_found {
 			break
 		}
 	}
 }
 
-CreateDevice :: proc(device: ^Device) {
-	uniqueIndices: map[int]b8
-	defer delete(uniqueIndices)
+@(private = "file")
+create_device :: proc(device: ^Device) {
+	unique_indices: map[int]b8
+	defer delete(unique_indices)
 
-	for i in device.queueIndices {
-		uniqueIndices[i] = true
+	for i in device.queue_indices {
+		unique_indices[i] = true
 	}
 
-	queueInfos := make([dynamic]vk.DeviceQueueCreateInfo, context.temp_allocator)
-	for i in uniqueIndices {
+	queue_infos := make([dynamic]vk.DeviceQueueCreateInfo, context.temp_allocator)
+	for i in unique_indices {
 		priority := f32(1)
 		queue_info := vk.DeviceQueueCreateInfo {
 			sType            = .DEVICE_QUEUE_CREATE_INFO,
@@ -172,47 +176,47 @@ CreateDevice :: proc(device: ^Device) {
 			pQueuePriorities = &priority,
 		}
 
-		append(&queueInfos, queue_info)
+		append(&queue_infos, queue_info)
 	}
 
-	deviceFeatures13 := vk.PhysicalDeviceVulkan13Features {
+	device_features_13 := vk.PhysicalDeviceVulkan13Features {
 		sType            = .PHYSICAL_DEVICE_VULKAN_1_3_FEATURES,
 		dynamicRendering = true,
 		synchronization2 = true,
 	}
 
-	deviceFeatures12 := vk.PhysicalDeviceVulkan12Features {
+	device_features_12 := vk.PhysicalDeviceVulkan12Features {
 		sType               = .PHYSICAL_DEVICE_VULKAN_1_2_FEATURES,
-		pNext               = &deviceFeatures13,
+		pNext               = &device_features_13,
 		bufferDeviceAddress = true,
 		descriptorIndexing  = true,
 	}
 
-	deviceFeatures := vk.PhysicalDeviceFeatures2 {
+	device_features := vk.PhysicalDeviceFeatures2 {
 		sType = .PHYSICAL_DEVICE_FEATURES_2,
-		pNext = &deviceFeatures12,
+		pNext = &device_features_12,
 	}
 
-	deviceInfo := vk.DeviceCreateInfo {
+	device_info := vk.DeviceCreateInfo {
 		sType                   = .DEVICE_CREATE_INFO,
-		pNext                   = &deviceFeatures,
-		queueCreateInfoCount    = u32(len(queueInfos)),
-		pQueueCreateInfos       = raw_data(queueInfos),
+		pNext                   = &device_features,
+		queueCreateInfoCount    = u32(len(queue_infos)),
+		pQueueCreateInfos       = raw_data(queue_infos),
 		enabledExtensionCount   = u32(len(DEVICE_EXTENSIONS)),
 		ppEnabledExtensionNames = &DEVICE_EXTENSIONS[0],
 	}
 
-	check(vk.CreateDevice(device.gpu, &deviceInfo, nil, &device.device))
+	check(vk.CreateDevice(device.gpu, &device_info, nil, &device.device))
 }
 
-DeinitDevice :: proc(device: ^Device) {
+deinit_device :: proc(device: ^Device) {
 	vma.DestroyAllocator(device.allocator)
 
 	vk.DestroyDevice(device.device, nil)
 	vk.DestroySurfaceKHR(device.instance, device.surface, nil)
 
 	when ODIN_DEBUG {
-		vk.DestroyDebugUtilsMessengerEXT(device.instance, device.debugMessenger, nil)
+		vk.DestroyDebugUtilsMessengerEXT(device.instance, device.debug_messenger, nil)
 	}
 
 	vk.DestroyInstance(device.instance, nil)
