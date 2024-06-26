@@ -159,6 +159,7 @@ WriteImageDescriptor :: proc(
 	assert(imageCount < len(imageInfos))
 
 	imageInfo := vk.DescriptorImageInfo {
+        sampler = sampler,
 		imageLayout = layout,
 		imageView   = image.imageView,
 	}

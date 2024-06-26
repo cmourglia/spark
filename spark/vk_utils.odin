@@ -2,6 +2,8 @@ package spark
 
 import "base:runtime"
 import "core:log"
+import "core:math"
+import "core:mem"
 import vma "shared:odin-vma"
 import vk "vendor:vulkan"
 
@@ -148,7 +150,7 @@ CreateBuffer :: proc(
 		flags = {.MAPPED},
 	}
 
-	buffer : Buffer
+	buffer: Buffer
 	check(
 		vma.CreateBuffer(
 			device.allocator,
@@ -165,6 +167,143 @@ CreateBuffer :: proc(
 
 DestroyBuffer :: proc(device: Device, buffer: Buffer) {
 	vma.DestroyBuffer(device.allocator, buffer.buffer, buffer.allocation)
+}
+
+CreateImage :: proc(
+	device: Device,
+	size: vk.Extent3D,
+	format: vk.Format,
+	usage: vk.ImageUsageFlags,
+	mipmapped: bool = false,
+) -> Image {
+	image := Image {
+		format = format,
+		extent = size,
+	}
+
+	imageInfo := vk.ImageCreateInfo {
+		sType       = .IMAGE_CREATE_INFO,
+		format      = format,
+		usage       = usage,
+		extent      = size,
+		imageType   = .D2,
+		arrayLayers = 1,
+		mipLevels   = 1,
+		samples     = {._1},
+		tiling      = .OPTIMAL,
+	}
+
+	if mipmapped {
+		nbLevels := math.log2(f32(max(size.width, size.height)))
+		imageInfo.mipLevels = u32(math.floor(nbLevels)) + 1
+	}
+
+	allocInfo := vma.AllocationCreateInfo {
+		usage         = .GPU_ONLY,
+		requiredFlags = {.DEVICE_LOCAL},
+	}
+
+	check(
+		vma.CreateImage(
+			device.allocator,
+			&imageInfo,
+			&allocInfo,
+			&image.image,
+			&image.allocation,
+			nil,
+		),
+	)
+
+	imageViewInfo := vk.ImageViewCreateInfo {
+		sType = .IMAGE_VIEW_CREATE_INFO,
+		viewType = .D2,
+		image = image.image,
+		format = format,
+		subresourceRange = {
+			baseMipLevel = 0,
+			levelCount = imageInfo.mipLevels,
+			baseArrayLayer = 0,
+			layerCount = 1,
+			aspectMask = {.DEPTH if format == .D32_SFLOAT else .COLOR},
+		},
+	}
+
+	check(vk.CreateImageView(device.device, &imageViewInfo, nil, &image.imageView))
+
+	return image
+}
+
+CreateImageWithData :: proc(
+	ctx: ^ImmediateContext,
+	data: rawptr,
+	size: vk.Extent3D,
+	format: vk.Format,
+	usage: vk.ImageUsageFlags,
+	mipmapped: bool = false,
+) -> Image {
+	dataSize := size.depth * size.width * size.height * 4
+	device := ctx.device^
+	uploadBuffer := CreateBuffer(device, u64(dataSize), {.TRANSFER_SRC}, .CPU_TO_GPU)
+
+	mem.copy(uploadBuffer.allocationInfo.pMappedData, data, int(dataSize))
+
+	image := CreateImage(
+		device,
+		size,
+		format,
+		usage | {.TRANSFER_DST | .TRANSFER_SRC},
+		mipmapped,
+	)
+
+	TempData :: struct {
+		image:  vk.Image,
+		size:   vk.Extent3D,
+		buffer: vk.Buffer,
+	}
+
+	tempData := TempData {
+		image  = image.image,
+		size   = size,
+		buffer = uploadBuffer.buffer,
+	}
+
+	context.user_ptr = &tempData
+
+	submitFn := proc(ctx: ^ImmediateContext, cmd: vk.CommandBuffer) {
+		data := (cast(^TempData)context.user_ptr)^
+
+		TransitionImage(cmd, data.image, .UNDEFINED, .TRANSFER_DST_OPTIMAL)
+
+		copyRegion := vk.BufferImageCopy {
+			bufferOffset = 0,
+			bufferRowLength = 0,
+			bufferImageHeight = 0,
+			imageExtent = data.size,
+			imageSubresource = {
+				aspectMask = {.COLOR},
+				mipLevel = 0,
+				baseArrayLayer = 0,
+				layerCount = 1,
+			},
+		}
+
+		vk.CmdCopyBufferToImage(
+			cmd,
+			data.buffer,
+			data.image,
+			.TRANSFER_DST_OPTIMAL,
+			1,
+			&copyRegion,
+		)
+
+        TransitionImage(cmd, data.image, .TRANSFER_DST_OPTIMAL, .SHADER_READ_ONLY_OPTIMAL)
+	}
+
+	ImmediateSubmit(ctx, submitFn)
+
+    DestroyBuffer(device, uploadBuffer)
+
+	return image
 }
 
 DestroyImage :: proc(device: Device, image: Image) {
