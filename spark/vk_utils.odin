@@ -138,6 +138,7 @@ create_buffer :: proc(
 	alloc_size: u64,
 	usage: vk.BufferUsageFlags,
 	memory_usage: vma.MemoryUsage,
+	memory_flags: vk.MemoryPropertyFlags,
 ) -> Buffer {
 	buffer_info := vk.BufferCreateInfo {
 		sType = .BUFFER_CREATE_INFO,
@@ -146,8 +147,9 @@ create_buffer :: proc(
 	}
 
 	alloc_info := vma.AllocationCreateInfo {
-		usage = memory_usage,
-		flags = {.MAPPED},
+		usage         = memory_usage,
+		requiredFlags = memory_flags,
+		flags         = {.MAPPED},
 	}
 
 	buffer: Buffer
@@ -243,7 +245,13 @@ create_image_with_data :: proc(
 ) -> Image {
 	data_size := size.depth * size.width * size.height * 4
 	device := ctx.device^
-	upload_buffer := create_buffer(device, u64(data_size), {.TRANSFER_SRC}, .CPU_TO_GPU)
+	upload_buffer := create_buffer(
+		device,
+		u64(data_size),
+		{.TRANSFER_SRC},
+		.CPU_TO_GPU,
+		{.DEVICE_LOCAL},
+	)
 
 	mem.copy(upload_buffer.allocation_info.pMappedData, data, int(data_size))
 

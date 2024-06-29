@@ -5,7 +5,7 @@ import "core:os"
 import "core:slice"
 import vk "vendor:vulkan"
 
-load_shader_module :: proc(device: vk.Device, filepath: string) -> (vk.ShaderModule, b32) {
+load_shader_module :: proc(device: Device, filepath: string) -> (vk.ShaderModule, b32) {
 	shader_module: vk.ShaderModule
 
 	content, ok := os.read_entire_file(filepath, context.temp_allocator)
@@ -22,7 +22,7 @@ load_shader_module :: proc(device: vk.Device, filepath: string) -> (vk.ShaderMod
 		pCode    = raw_data(code),
 	}
 
-	check(vk.CreateShaderModule(device, &shader_module_info, nil, &shader_module))
+	check(vk.CreateShaderModule(device.device, &shader_module_info, nil, &shader_module))
 
 	return shader_module, true
 }
@@ -53,7 +53,7 @@ default_graphics_pipeline_config :: proc() -> Graphics_Pipeline_Config {
 
 
 build_graphics_pipeline :: proc(
-	device: vk.Device,
+	device: Device,
 	using config: ^Graphics_Pipeline_Config,
 ) -> vk.Pipeline {
 	viewport_state := vk.PipelineViewportStateCreateInfo {
@@ -101,7 +101,7 @@ build_graphics_pipeline :: proc(
 
 	// TODO: Gracefully handle failure ?
 	check(
-		vk.CreateGraphicsPipelines(device, vk.PipelineCache{}, 1, &pipeline_info, nil, &pipeline),
+		vk.CreateGraphicsPipelines(device.device, vk.PipelineCache{}, 1, &pipeline_info, nil, &pipeline),
 	)
 
 	return pipeline
